@@ -1,0 +1,19 @@
+{
+  "name": "jvm-pulse-marketplace",
+  "owner": {
+    "name": "Bruno Borges",
+    "email": "bruno.borges@gmail.com"
+  },
+  "metadata": {
+    "description": "Marketplace for the JVM Pulse Copilot extension",
+    "version": "1.0.0"
+  },
+  "plugins": [
+    {
+      "name": "jvm-pulse",
+      "description": "Profile any Java project's garbage collection and flight-recorder telemetry inside Copilot: run a workload with GC logging + JFR, analyze it with GCToolkit and the jfr CLI, and visualize throughput, pauses, heap, allocations and hot methods in an interactive canvas.",
+      "version": "1.0.0",
+      "source": "."
+    }
+  ]
+}
