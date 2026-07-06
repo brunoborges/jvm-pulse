@@ -1,0 +1,27 @@
+{
+  "name": "jvm-pulse",
+  "version": "1.0.0",
+  "type": "module",
+  "main": "extension.mjs",
+  "description": "Profile any Java project's garbage collection and flight-recorder telemetry inside Copilot, visualized in an interactive canvas.",
+  "author": "Bruno Borges (https://github.com/brunoborges)",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/brunoborges/jvm-pulse.git"
+  },
+  "dependencies": {
+    "@github/copilot-sdk": "latest"
+  },
+  "keywords": [
+    "java",
+    "jvm",
+    "garbage-collection",
+    "jfr",
+    "flight-recorder",
+    "gctoolkit",
+    "performance",
+    "profiling",
+    "canvas"
+  ]
+}
