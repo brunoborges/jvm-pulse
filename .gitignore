@@ -1,0 +1,9 @@
+# Analysis run artifacts (gc logs, jfr recordings, reports) are large and local.
+runs/
+
+# impeccable design-hook artifacts
+.impeccable/
+
+# Node / OS cruft
+node_modules/
+.DS_Store
