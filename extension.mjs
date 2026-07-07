@@ -11,7 +11,7 @@ import { readFile } from "node:fs/promises";
 import { join, dirname, extname, normalize, isAbsolute } from "node:path";
 import { fileURLToPath } from "node:url";
 import { joinSession, createCanvas, CanvasError } from "@github/copilot-sdk/extension";
-import { analyzeArtifacts, loadLatest, readArtifact, TOOL_PATHS } from "./lib/pipeline.mjs";
+import { analyzeArtifacts, loadLatest, loadRun, listRuns, readArtifact, TOOL_PATHS } from "./lib/pipeline.mjs";
 import { buildAnalysisPrompt, buildRunPrompt } from "./lib/prompt.mjs";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
@@ -124,15 +124,28 @@ async function handleRequest(req, res) {
     const url = new URL(req.url, "http://localhost");
     const path = url.pathname;
 
+    if (path === "/runs") {
+        const runs = await listRuns();
+        res.writeHead(200, { "Content-Type": MIME[".json"] });
+        res.end(JSON.stringify({ runs, latestRunId: runState.lastReport?.runId ?? runs[0]?.runId ?? null }));
+        return;
+    }
+
     if (path === "/state") {
-        const report = runState.lastReport ?? (await loadLatest());
+        const runId = url.searchParams.get("runId");
+        let report = null;
+        if (runId) report = await loadRun(runId);
+        else report = runState.lastReport ?? (await loadLatest());
         res.writeHead(200, { "Content-Type": MIME[".json"] });
         res.end(JSON.stringify(report ?? { empty: true }));
         return;
     }
 
     if (path === "/views") {
-        const report = runState.lastReport ?? (await loadLatest());
+        const runId = url.searchParams.get("runId");
+        let report = null;
+        if (runId) report = await loadRun(runId);
+        else report = runState.lastReport ?? (await loadLatest());
         const text = report?.artifacts?.views ? await readArtifact(report.artifacts.views) : null;
         res.writeHead(200, { "Content-Type": "text/plain; charset=utf-8" });
         res.end(text ?? "");
@@ -238,6 +251,7 @@ sessionRef = await joinSession({
                             runId: report.runId,
                             generatedAt: report.generatedAt,
                             label: report.label ?? null,
+                            command: report.command ?? null,
                             gc: report.gc?.summary ?? null,
                             gcConfig: report.gcConfig ?? null,
                             jfrAvailable: report.jfr?.available ?? false,
@@ -278,6 +292,7 @@ sessionRef = await joinSession({
                     gcLogPath: { type: "string", description: "Absolute path to the GC log file (unified -Xlog:gc* output or JDK 8 -Xloggc output)." },
                     jfrPath: { type: "string", description: "Absolute path to the .jfr flight recording, if one was produced. Optional but strongly recommended." },
                     label: { type: "string", description: "Short human-readable description of the workload and notable JVM flags (e.g. 'JMH io-bench, -Xmx512m G1')." },
+                    command: { type: "string", description: "The exact command used to launch the workload, including all JVM flags (e.g. 'java -Xmx512m -XX:+UseG1GC -Xlog:gc*:file=gc.log ... -jar app.jar'). Recorded verbatim so the user can see and compare the flags used across runs." },
                 },
                 required: ["gcLogPath"],
                 additionalProperties: false,
@@ -288,7 +303,7 @@ sessionRef = await joinSession({
                 const gcLogPath = resolveArg(args?.gcLogPath);
                 const jfrPath = resolveArg(args?.jfrPath);
                 try {
-                    const report = await ingestArtifacts({ gcLogPath, jfrPath, label: args?.label });
+                    const report = await ingestArtifacts({ gcLogPath, jfrPath, label: args?.label, command: args?.command });
                     const s = report.gc?.summary ?? {};
                     const jfr = report.jfr ?? {};
                     const lines = [

@@ -241,6 +241,8 @@ function renderReport(r) {
 
   if (gc.error) out.push(`<div class="error-banner"><strong>GC log analysis error.</strong> ${esc(gc.error)}</div>`);
 
+  out.push(runMetaLine(r));
+
   const a = assess(s, jfr);
 
   // 1. Verdict — lead with a point of view.
@@ -357,7 +359,10 @@ function renderReport(r) {
     ["GC log", (r.source && r.source.gcLogName) || "–"],
   ];
   out.push(sectionHeader("Environment"));
-  out.push(`<div class="panels">` + panel("", "", `<table class="info">${infoRows.map(([k, v]) => `<tr><td class="k">${esc(k)}</td><td class="v">${esc(v)}</td></tr>`).join("")}</table>`, "wide") + `</div>`);
+  const envPanels = [];
+  if (r.command) envPanels.push(commandPanel(r.command));
+  envPanels.push(panel("", "", `<table class="info">${infoRows.map(([k, v]) => `<tr><td class="k">${esc(k)}</td><td class="v">${esc(v)}</td></tr>`).join("")}</table>`, "wide"));
+  out.push(`<div class="panels">` + envPanels.join("") + `</div>`);
 
   let html = out.join("");
   if (r.artifacts && r.artifacts.views) {
@@ -370,6 +375,34 @@ function panel(title, desc, body, extraClass = "") {
   const head = title ? `<div class="phead"><h3>${esc(title)}</h3></div>` : "";
   const d = desc ? `<p class="desc">${esc(desc)}</p>` : "";
   return `<div class="panel ${extraClass}">${head}${d}${body}</div>`;
+}
+
+// A concise timestamp for a run, e.g. "Jul 7, 14:32".
+function fmtRunTime(iso) {
+  if (!iso) return "";
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return String(iso);
+  return d.toLocaleString(undefined, { month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" });
+}
+
+// Identity line at the top of a report: which run is on screen.
+function runMetaLine(r) {
+  if (!r || (!r.generatedAt && !r.label && !r.runId)) return "";
+  const when = fmtRunTime(r.generatedAt) || esc(r.runId || "");
+  const label = r.label ? `<span class="rm-label">${esc(r.label)}</span>` : "";
+  return `<div class="runmeta reveal" style="--i:0">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg>
+    <span class="rm-when">${esc(when)}</span>${label}
+  </div>`;
+}
+
+// The exact launch command (with JVM flags) for a run, monospace + copyable.
+function commandPanel(command) {
+  return `<div class="panel wide cmd-panel">
+    <div class="phead"><h3>Command</h3><button class="btn copy-cmd" type="button" data-cmd="${esc(command)}">Copy</button></div>
+    <p class="desc">The exact command and JVM flags used to launch this workload.</p>
+    <pre class="cmd">${esc(command)}</pre>
+  </div>`;
 }
 
 function typeLegend(types) {
@@ -394,19 +427,222 @@ function shortMethod(name) {
 }
 
 // ---------------------------------------------------------------------------
+// Comparing two runs
+// ---------------------------------------------------------------------------
+
+// Metrics compared head-to-head. `better` says which direction is an improvement
+// so deltas can be colored good/bad; `get` pulls the value from a gc summary.
+const CMP_METRICS = [
+  { label: "Throughput", unit: "%", d: 2, better: "higher", get: (s) => s.throughputPercent },
+  { label: "p99 pause", unit: "ms", d: 1, better: "lower", get: (s) => s.p99PauseMs },
+  { label: "Max pause", unit: "ms", d: 1, better: "lower", get: (s) => s.maxPauseMs },
+  { label: "Avg pause", unit: "ms", d: 2, better: "lower", get: (s) => s.avgPauseMs },
+  { label: "Total pause", unit: "ms", d: 0, better: "lower", get: (s) => s.totalPauseMs },
+  { label: "Alloc rate", unit: "MB/s", d: 0, better: "lower", get: (s) => s.allocRateMbPerSec },
+  { label: "Peak heap", unit: "MB", d: 0, better: "lower", get: (s) => (s.peakHeapKb != null ? s.peakHeapKb / 1024 : null) },
+  { label: "GC events", unit: "", d: 0, better: "lower", get: (s) => s.eventCount },
+  { label: "Runtime", unit: "s", d: 1, better: "neutral", get: (s) => s.runtimeSec },
+];
+
+function deltaStatus(delta, better) {
+  if (delta == null || Math.abs(delta) < 1e-9 || better === "neutral") return "neutral";
+  const improved = better === "higher" ? delta > 0 : delta < 0;
+  return improved ? "good" : "bad";
+}
+
+function cmpValueCell(v, unit, d) {
+  if (v == null || Number.isNaN(v)) return `<td class="num muted">–</td>`;
+  return `<td class="num">${fmt(v, d)}${unit ? `<span class="u">${esc(unit)}</span>` : ""}</td>`;
+}
+
+function cmpDeltaCell(a, b, m) {
+  if (a == null || b == null || Number.isNaN(a) || Number.isNaN(b)) return `<td class="num muted">–</td>`;
+  const delta = b - a;
+  const status = deltaStatus(delta, m.better);
+  const sign = delta > 0 ? "+" : "";
+  const pct = a !== 0 ? ` (${delta > 0 ? "+" : ""}${fmt((delta / Math.abs(a)) * 100, 1)}%)` : "";
+  const arrow = delta > 0 ? "▲" : delta < 0 ? "▼" : "→";
+  return `<td class="num delta" data-status="${status}"><span class="arw">${arrow}</span>${sign}${fmt(delta, m.d)}${m.unit ? esc(m.unit) : ""}<span class="pctc">${esc(pct)}</span></td>`;
+}
+
+// Token-level flag diff: highlight tokens in `cmd` that are absent from `otherSet`.
+function cmdTokens(cmd) {
+  return String(cmd || "").trim().split(/\s+/).filter(Boolean);
+}
+function renderCmdDiff(cmd, otherSet, cls) {
+  if (!cmd) return `<span class="muted">(not recorded)</span>`;
+  return cmdTokens(cmd)
+    .map((t) => (otherSet.has(t) ? `<span class="tok">${esc(t)}</span>` : `<span class="tok ${cls}">${esc(t)}</span>`))
+    .join(" ");
+}
+
+function compareCard(r, tag, tagClass) {
+  const cfg = r.gcConfig || {};
+  const collector = cfg.youngCollector ? `${cfg.youngCollector} / ${cfg.oldCollector}` : "–";
+  return `<div class="cmp-card">
+    <span class="cmp-tag ${tagClass}">${esc(tag)}</span>
+    <div class="cmp-card-when">${esc(fmtRunTime(r.generatedAt) || r.runId || "")}</div>
+    <div class="cmp-card-label">${esc(r.label || "Unlabeled run")}</div>
+    <div class="cmp-card-col">${esc(collector)}</div>
+  </div>`;
+}
+
+function renderCompare(aReport, bReport) {
+  const sa = (aReport.gc && aReport.gc.summary) || {};
+  const sb = (bReport.gc && bReport.gc.summary) || {};
+  const out = [];
+
+  out.push(sectionHeader("Comparison"));
+  out.push(`<div class="cmp-head reveal" style="--i:0">
+    ${compareCard(aReport, "Baseline", "base")}
+    <span class="cmp-vs">vs</span>
+    ${compareCard(bReport, "Selected", "sel")}
+  </div>`);
+
+  // Headline summary of the two most decisive metrics.
+  const tpD = (sb.throughputPercent ?? 0) - (sa.throughputPercent ?? 0);
+  const p99D = (sb.p99PauseMs ?? 0) - (sa.p99PauseMs ?? 0);
+  const parts = [];
+  if (sa.throughputPercent != null && sb.throughputPercent != null) parts.push(`throughput ${tpD >= 0 ? "+" : ""}${fmt(tpD, 2)} pp`);
+  if (sa.p99PauseMs != null && sb.p99PauseMs != null) parts.push(`p99 pause ${p99D >= 0 ? "+" : ""}${fmt(p99D, 1)} ms`);
+  if (parts.length) out.push(`<p class="cmp-summary reveal" style="--i:1">Selected vs baseline: ${esc(parts.join(", "))}.</p>`);
+
+  // Metric-by-metric table.
+  const rows = CMP_METRICS.map((m) => {
+    const a = m.get(sa), b = m.get(sb);
+    return `<tr>
+      <td class="k">${esc(m.label)}</td>
+      ${cmpValueCell(a, m.unit, m.d)}
+      ${cmpValueCell(b, m.unit, m.d)}
+      ${cmpDeltaCell(a, b, m)}
+    </tr>`;
+  }).join("");
+  out.push(`<div class="panels reveal" style="--i:2"><div class="panel wide">
+    <table class="cmp-table">
+      <thead><tr><th>Metric</th><th class="num">Baseline</th><th class="num">Selected</th><th class="num">Δ</th></tr></thead>
+      <tbody>${rows}</tbody>
+    </table>
+  </div></div>`);
+
+  // Command / flag diff.
+  const setA = new Set(cmdTokens(aReport.command));
+  const setB = new Set(cmdTokens(bReport.command));
+  if (aReport.command || bReport.command) {
+    out.push(sectionHeader("Command & flags"));
+    out.push(`<div class="panels reveal" style="--i:3"><div class="panel wide cmd-diff">
+      <div class="cmd-diff-row"><span class="cmp-tag base">Baseline</span><pre class="cmd">${renderCmdDiff(aReport.command, setB, "removed")}</pre></div>
+      <div class="cmd-diff-row"><span class="cmp-tag sel">Selected</span><pre class="cmd">${renderCmdDiff(bReport.command, setA, "added")}</pre></div>
+      <div class="cmd-diff-legend"><span class="item"><span class="sw removed"></span>only in baseline</span><span class="item"><span class="sw added"></span>only in selected</span></div>
+    </div></div>`);
+  }
+
+  return out.join("");
+}
+
+// ---------------------------------------------------------------------------
 // App wiring: state fetch, run trigger, SSE progress
 // ---------------------------------------------------------------------------
 const el = (id) => document.getElementById(id);
 let waiting = false;
+let runsList = [];
+let currentRunId = null;
+let compareMode = false;
 
-async function loadState() {
+async function fetchReport(runId) {
+  const url = runId ? `state?runId=${encodeURIComponent(runId)}` : "state";
+  const res = await fetch(url);
+  return res.json();
+}
+
+// Refresh the run history and populate the pickers. Shows the run bar once there
+// is at least one saved run.
+async function refreshRuns() {
   try {
-    const res = await fetch("state");
+    const res = await fetch("runs");
     const data = await res.json();
+    runsList = (data && data.runs) || [];
+  } catch {
+    runsList = [];
+  }
+  el("runbar").classList.toggle("hidden", runsList.length === 0);
+  if (runsList.length < 2) {
+    // Comparison needs two runs; disable the toggle until there are.
+    el("compare-btn").disabled = true;
+    el("compare-btn").title = "Need at least two runs to compare";
+  } else {
+    el("compare-btn").disabled = false;
+    el("compare-btn").title = "Compare this run with another";
+  }
+  populateRunSelects();
+}
+
+function runOptionLabel(r, latest) {
+  const when = fmtRunTime(r.generatedAt) || r.runId;
+  const extra = r.label ? ` · ${r.label}` : r.collector ? ` · ${r.collector}` : "";
+  return `${when}${extra}${latest ? "  (latest)" : ""}`;
+}
+
+function populateRunSelects() {
+  const sel = el("run-select");
+  const base = el("baseline-select");
+  if (sel) {
+    sel.innerHTML = runsList.map((r, i) => `<option value="${esc(r.runId)}">${esc(runOptionLabel(r, i === 0))}</option>`).join("");
+    if (currentRunId && runsList.some((r) => r.runId === currentRunId)) sel.value = currentRunId;
+    else if (runsList[0]) currentRunId = runsList[0].runId;
+  }
+  if (base) {
+    base.innerHTML = runsList.map((r) => `<option value="${esc(r.runId)}">${esc(runOptionLabel(r, false))}</option>`).join("");
+    // Default the baseline to the most recent run that isn't the selected one.
+    const other = runsList.find((r) => r.runId !== currentRunId);
+    if (other) base.value = other.runId;
+  }
+}
+
+async function selectRun(runId) {
+  currentRunId = runId || (runsList[0] && runsList[0].runId) || null;
+  const sel = el("run-select");
+  if (sel && currentRunId) sel.value = currentRunId;
+  if (compareMode) return renderComparison();
+  try {
+    const data = await fetchReport(currentRunId);
     if (data && !data.empty && data.gc) showReport(data);
     else showEmpty();
   } catch {
     showEmpty();
+  }
+}
+
+function toggleCompare() {
+  if (runsList.length < 2) return;
+  compareMode = !compareMode;
+  el("compare-btn").classList.toggle("active", compareMode);
+  el("baseline-wrap").classList.toggle("hidden", !compareMode);
+  if (compareMode) renderComparison();
+  else selectRun(currentRunId);
+}
+
+async function renderComparison() {
+  const baseId = el("baseline-select").value;
+  const selId = currentRunId || (runsList[0] && runsList[0].runId);
+  el("empty").classList.add("hidden");
+  el("analyze-btn").classList.add("hidden");
+  const rep = el("report");
+  rep.classList.remove("hidden");
+  if (!baseId || !selId || baseId === selId) {
+    rep.innerHTML = `<div class="compare-hint">Pick two different runs to compare — choose the run to inspect in <strong>Run</strong> and a baseline in <strong>vs</strong>.</div>`;
+    return;
+  }
+  rep.innerHTML = `<div class="compare-hint">Loading comparison…</div>`;
+  try {
+    const [a, b] = await Promise.all([fetchReport(baseId), fetchReport(selId)]);
+    if (!a || a.empty || !b || b.empty) {
+      rep.innerHTML = `<div class="compare-hint">Couldn't load one of the runs.</div>`;
+      return;
+    }
+    rep.innerHTML = renderCompare(a, b);
+    animateBars(rep);
+  } catch {
+    rep.innerHTML = `<div class="compare-hint">Failed to load comparison.</div>`;
   }
 }
 
@@ -417,6 +653,11 @@ function showEmpty() {
 }
 
 function showReport(r) {
+  if (r && r.runId) {
+    currentRunId = r.runId;
+    const sel = el("run-select");
+    if (sel && runsList.some((x) => x.runId === r.runId)) sel.value = r.runId;
+  }
   el("empty").classList.add("hidden");
   const rep = el("report");
   rep.innerHTML = renderReport(r);
@@ -424,7 +665,7 @@ function showReport(r) {
   animateBars(rep);
   el("analyze-btn").classList.remove("hidden");
   if (r.artifacts && r.artifacts.views) {
-    fetch("views").then((res) => (res.ok ? res.text() : "")).then((txt) => {
+    fetch(`views?runId=${encodeURIComponent(r.runId || "")}`).then((res) => (res.ok ? res.text() : "")).then((txt) => {
       const pre = el("views-pre");
       if (pre) pre.textContent = txt || "(unavailable)";
     }).catch(() => {});
@@ -454,7 +695,17 @@ function connectEvents() {
   evtSrc.addEventListener("done", (e) => {
     finishWaiting();
     setProgress(100, "Analysis complete.");
-    try { const d = JSON.parse(e.data); if (d.report) showReport(d.report); else loadState(); } catch { loadState(); }
+    // A fresh ingest is always shown as the latest run; leave compare mode.
+    compareMode = false;
+    el("compare-btn").classList.remove("active");
+    el("baseline-wrap").classList.add("hidden");
+    let report = null;
+    try { const d = JSON.parse(e.data); report = d.report; } catch {}
+    if (report && report.runId) currentRunId = report.runId;
+    refreshRuns().then(() => {
+      if (report && report.gc) showReport(report);
+      else selectRun(currentRunId);
+    });
     setTimeout(() => el("progress").classList.add("hidden"), 1500);
   });
   evtSrc.addEventListener("failed", (e) => {
@@ -527,6 +778,25 @@ el("run-btn").addEventListener("click", openConfig);
 el("config-cancel").addEventListener("click", closeConfig);
 el("config-start").addEventListener("click", startRun);
 el("analyze-btn").addEventListener("click", analyzeWithAI);
+el("run-select").addEventListener("change", (e) => selectRun(e.target.value));
+el("baseline-select").addEventListener("change", () => { if (compareMode) renderComparison(); });
+el("compare-btn").addEventListener("click", toggleCompare);
 
-connectEvents();
-loadState();
+// Copy-to-clipboard for command blocks (delegated; blocks are re-rendered).
+document.addEventListener("click", (e) => {
+  const btn = e.target.closest && e.target.closest(".copy-cmd");
+  if (!btn) return;
+  const cmd = btn.getAttribute("data-cmd") || "";
+  const done = () => { const t = btn.textContent; btn.textContent = "Copied"; setTimeout(() => (btn.textContent = t), 1500); };
+  if (navigator.clipboard && navigator.clipboard.writeText) navigator.clipboard.writeText(cmd).then(done).catch(() => {});
+  else done();
+});
+
+async function init() {
+  connectEvents();
+  await refreshRuns();
+  if (runsList.length) selectRun(runsList[0].runId);
+  else showEmpty();
+}
+
+init();
