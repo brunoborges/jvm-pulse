@@ -18,6 +18,20 @@
         </div>
       </div>
       <div class="actions">
+        <div id="runbar" class="runbar hidden">
+          <label class="runsel">
+            <span class="rl">Run</span>
+            <select id="run-select" title="View a past run"></select>
+          </label>
+          <button id="compare-btn" class="btn compare-toggle" title="Compare this run with another">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 3v18M19 3v18M9 7l-4 4 4 4M15 17l4-4-4-4"/></svg>
+            Compare
+          </button>
+          <label class="runsel compare-only hidden" id="baseline-wrap">
+            <span class="rl">vs</span>
+            <select id="baseline-select" title="Baseline run to compare against"></select>
+          </label>
+        </div>
         <span id="run-status" class="run-status"></span>
         <button id="analyze-btn" class="btn ai hidden">
           <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M12 2l1.9 5.1L19 9l-5.1 1.9L12 16l-1.9-5.1L5 9l5.1-1.9L12 2zM19 15l.9 2.4L22 18l-2.1.6L19 21l-.9-2.4L16 18l2.1-.6L19 15z"/></svg>

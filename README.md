@@ -99,9 +99,11 @@ existing `gc.log` and `.jfr` on disk — no run required.
 
 ### Actions & tools
 
-- **`jvm_pulse_ingest`** *(agent tool)* — `{ gcLogPath, jfrPath?, label? }`.
+- **`jvm_pulse_ingest`** *(agent tool)* — `{ gcLogPath, jfrPath?, label?, command? }`.
   Analyzes a GC log + optional JFR recording and updates the canvas. Copilot
   calls this after running a workload, or you can point it at existing artifacts.
+  Pass `command` with the exact launch command (including JVM flags) so the run's
+  tuning is recorded and comparable.
 - `run_analysis` *(canvas action)* — `{ hint?, jfrMaxSizeMb? }`. Injects the
   "build + run this project's workload with GC logging + JFR" request into the
   session; Copilot does the project-specific work.
@@ -112,6 +114,14 @@ existing `gc.log` and `.jfr` on disk — no run required.
 
 ## What it shows
 
+- **Run history** — every ingested run is kept; pick any past run from the **Run**
+  selector in the toolbar to view it again.
+- **Compare** — toggle **Compare** and choose a baseline to see a metric-by-metric
+  diff (throughput, pauses, allocation, heap, GC events) with colored deltas, plus
+  a flag-level diff of the two runs' launch commands.
+- **Command** — each run records the exact command and JVM flags used to launch
+  the workload, shown in the report and diffed in Compare, so JVM tuning between
+  runs is visible.
 - **Verdict** — a plain-language GC health assessment with semantic status.
 - **KPIs** — throughput %, p99 pause, allocation rate, peak heap, plus GC count,
   total/avg pause and runtime.

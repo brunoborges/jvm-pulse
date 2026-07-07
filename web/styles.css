@@ -428,6 +428,136 @@ details.views pre {
   .bar-item .fill { transition: none; }
 }
 
+/* --- Run history picker (topbar) ---------------------------------------- */
+.runbar { display: flex; align-items: center; gap: 0.5rem; flex: none; }
+.runsel { display: inline-flex; align-items: center; gap: 0.4rem; font-size: 12px; color: var(--ink-muted); }
+.runsel .rl { font-weight: var(--font-weight-semibold, 600); text-transform: uppercase; letter-spacing: 0.05em; font-size: 10.5px; }
+.runsel select {
+  max-width: 220px;
+  padding: 0.34rem 0.5rem;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--surface);
+  color: var(--ink);
+  font-size: 12px;
+  font-family: inherit;
+  cursor: pointer;
+  transition: border-color 0.15s var(--ease), box-shadow 0.15s var(--ease);
+}
+.runsel select:focus { outline: none; border-color: var(--accent); box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 22%, transparent); }
+.btn.compare-toggle svg { width: 15px; height: 15px; }
+.btn.compare-toggle.active {
+  color: var(--accent);
+  border-color: color-mix(in srgb, var(--accent) 45%, var(--border));
+  background: color-mix(in srgb, var(--accent) 12%, transparent);
+}
+.runbar .compare-only.hidden { display: none; }
+
+/* --- Run identity line (top of a single report) -------------------------- */
+.runmeta {
+  display: flex; align-items: center; gap: 0.5rem;
+  margin-bottom: 0.85rem;
+  font-size: 12.5px; color: var(--ink-muted);
+}
+.runmeta svg { width: 15px; height: 15px; flex: none; color: var(--accent); }
+.runmeta .rm-when { font-variant-numeric: tabular-nums; font-weight: var(--font-weight-semibold, 600); color: var(--ink); }
+.runmeta .rm-label {
+  padding: 0.12rem 0.5rem; border-radius: 99px;
+  background: var(--surface-muted); border: 1px solid var(--border-muted);
+  color: var(--ink);
+}
+
+/* --- Command block ------------------------------------------------------- */
+.cmd-panel .phead { align-items: center; }
+.cmd-panel .btn.copy-cmd { padding: 0.28rem 0.6rem; font-size: 11.5px; }
+pre.cmd {
+  margin: 0.35rem 0 0;
+  padding: 0.75rem 0.85rem;
+  background: var(--surface-muted);
+  border: 1px solid var(--border-muted);
+  border-radius: var(--radius-sm);
+  font-family: var(--font-mono, monospace);
+  font-size: 12px; line-height: 1.55;
+  white-space: pre-wrap; word-break: break-all;
+  overflow-x: auto;
+}
+
+/* --- Comparison view ----------------------------------------------------- */
+.compare-hint {
+  padding: clamp(2rem, 8vh, 3.5rem) 1.25rem;
+  text-align: center; color: var(--ink-muted);
+  border: 1px dashed var(--border); border-radius: var(--radius);
+  background: var(--surface);
+}
+.cmp-head {
+  display: grid;
+  grid-template-columns: 1fr auto 1fr;
+  align-items: stretch;
+  gap: 0.75rem;
+  margin-bottom: 0.9rem;
+}
+.cmp-card {
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 0.8rem 0.95rem;
+  background: var(--surface);
+  box-shadow: var(--shadow-1);
+  min-width: 0;
+}
+.cmp-tag {
+  display: inline-block;
+  font-size: 10px; font-weight: var(--font-weight-semibold, 600);
+  text-transform: uppercase; letter-spacing: 0.05em;
+  padding: 0.1rem 0.45rem; border-radius: 99px;
+  margin-bottom: 0.4rem;
+}
+.cmp-tag.base { color: var(--status-neutral); background: color-mix(in srgb, var(--status-neutral) 16%, transparent); }
+.cmp-tag.sel { color: var(--accent); background: color-mix(in srgb, var(--accent) 15%, transparent); }
+.cmp-card-when { font-size: 12px; color: var(--ink-muted); font-variant-numeric: tabular-nums; }
+.cmp-card-label { font-size: 14px; font-weight: var(--font-weight-semibold, 600); margin-top: 0.1rem; overflow: hidden; text-overflow: ellipsis; }
+.cmp-card-col { font-size: 12px; color: var(--ink-muted); font-family: var(--font-mono, monospace); margin-top: 0.15rem; }
+.cmp-vs { align-self: center; font-size: 12px; color: var(--ink-muted); font-weight: var(--font-weight-semibold, 600); }
+.cmp-summary { margin: 0 0 0.9rem; font-size: 13px; color: var(--ink-muted); }
+
+table.cmp-table { width: 100%; border-collapse: collapse; font-size: 13px; }
+table.cmp-table th {
+  text-align: left; padding: 0.45rem 0.6rem;
+  font-size: 11px; text-transform: uppercase; letter-spacing: 0.04em;
+  color: var(--ink-muted); font-weight: var(--font-weight-semibold, 600);
+  border-bottom: 1px solid var(--border);
+}
+table.cmp-table td { padding: 0.5rem 0.6rem; border-bottom: 1px solid var(--border-muted); }
+table.cmp-table tr:last-child td { border-bottom: 0; }
+table.cmp-table td.k { color: var(--ink-muted); }
+table.cmp-table .num, table.cmp-table th.num { text-align: right; font-variant-numeric: tabular-nums; }
+table.cmp-table .num .u { color: var(--ink-muted); font-size: 11px; margin-left: 2px; }
+table.cmp-table td.muted { color: var(--ink-muted); }
+table.cmp-table td.delta { font-weight: var(--font-weight-semibold, 600); white-space: nowrap; }
+table.cmp-table td.delta[data-status="good"] { color: var(--status-good); }
+table.cmp-table td.delta[data-status="bad"] { color: var(--status-bad); }
+table.cmp-table td.delta[data-status="neutral"] { color: var(--ink-muted); }
+table.cmp-table td.delta .arw { margin-right: 0.25rem; font-size: 10px; }
+table.cmp-table td.delta .pctc { color: var(--ink-muted); font-weight: 400; margin-left: 0.25rem; }
+
+/* --- Command / flag diff ------------------------------------------------- */
+.cmd-diff .cmd-diff-row { display: flex; align-items: flex-start; gap: 0.6rem; margin-bottom: 0.6rem; }
+.cmd-diff .cmd-diff-row .cmp-tag { margin-top: 0.5rem; flex: none; }
+.cmd-diff pre.cmd { flex: 1; margin: 0; }
+.cmd-diff .tok { padding: 0.02rem 0.1rem; border-radius: 3px; }
+.cmd-diff .tok.added { background: color-mix(in srgb, var(--status-good) 22%, transparent); color: var(--ink); font-weight: var(--font-weight-semibold, 600); }
+.cmd-diff .tok.removed { background: color-mix(in srgb, var(--status-bad) 20%, transparent); color: var(--ink); font-weight: var(--font-weight-semibold, 600); }
+.cmd-diff-legend { display: flex; gap: 1rem; font-size: 11.5px; color: var(--ink-muted); margin-top: 0.3rem; }
+.cmd-diff-legend .item { display: flex; align-items: center; gap: 0.35rem; }
+.cmd-diff-legend .sw { width: 11px; height: 11px; border-radius: 3px; display: inline-block; }
+.cmd-diff-legend .sw.added { background: color-mix(in srgb, var(--status-good) 40%, transparent); }
+.cmd-diff-legend .sw.removed { background: color-mix(in srgb, var(--status-bad) 38%, transparent); }
+
+@media (max-width: 620px) {
+  .runsel select { max-width: 130px; }
+  .cmp-head { grid-template-columns: 1fr; }
+  .cmp-vs { display: none; }
+}
+
 @media (max-width: 620px) {
   .panels { grid-template-columns: 1fr; }
   .panel .phead { flex-direction: column; align-items: flex-start; gap: 0.2rem; }
