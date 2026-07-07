@@ -65,6 +65,7 @@ body {
   z-index: 50;
 }
 .title { display: flex; align-items: center; gap: 0.7rem; min-width: 0; }
+.title > div { min-width: 0; }
 .title .glyph {
   flex: none;
   width: 30px; height: 30px;
@@ -80,8 +81,17 @@ body {
   font-weight: var(--font-weight-semibold, 600);
   letter-spacing: -0.01em;
   line-height: 1.2;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
-.subtitle { color: var(--ink-muted); font-size: 12px; }
+.subtitle {
+  color: var(--ink-muted);
+  font-size: 12px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
 
 .actions { display: flex; align-items: center; gap: 0.6rem; flex: none; }
 .run-status {
