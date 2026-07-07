@@ -25,10 +25,18 @@ The extension runs on your machine and shells out to:
 
 - **A JDK** with the `jfr` CLI on `PATH` (JDK 11+ for JFR; JDK 9+ for unified GC
   logging). JDK 8 is supported for GC logs.
-- **[jbang](https://www.jbang.dev/)** — runs the bundled GCToolkit analyzer.
-  Install with `curl -Ls https://sh.jbang.dev | bash`, `sdk install jbang`,
-  `brew install jbang`, or see the jbang docs. The first run downloads GCToolkit
-  automatically via the analyzer's inline `//DEPS`.
+
+That's the only hard requirement. The extension uses
+**[jbang](https://www.jbang.dev/)** to run the bundled GCToolkit analyzer:
+
+- If a native `jbang` is already installed (via `sdk install jbang`,
+  `brew install jbang`, `curl -Ls https://sh.jbang.dev | bash`, …) it is used
+  as-is.
+- Otherwise, on first run the extension **lazily downloads a pinned jbang
+  release into `~/.jvm-pulse` and drives it through your JDK** — no separate
+  jbang install, and no `curl`/`unzip` needed (extraction uses the JDK's own
+  `jar`). GCToolkit itself is then fetched once via the analyzer's inline
+  `//DEPS`.
 
 Tool paths are auto-resolved from `PATH`, `JAVA_HOME`, and common install
 locations; inspect them with the `tool_status` canvas action.
@@ -137,6 +145,7 @@ existing `gc.log` and `.jfr` on disk — no run required.
 ```
 extension.mjs        wiring: canvas, HTTP server, SSE, actions, jvm_pulse_ingest tool
 lib/pipeline.mjs     analyzeArtifacts(): GC/JFR analysis of provided artifacts
+lib/jbang.mjs        jbang bootstrap: use native jbang or lazily download via the JDK
 lib/jfr.mjs          jfr CLI extraction + reduction to chart-ready data
 lib/prompt.mjs       run prompt + AI-analysis prompt builders
 tools/GcLogAnalyzer.java   jbang GCToolkit analyzer → JSON
