@@ -11,7 +11,7 @@ import { readFile } from "node:fs/promises";
 import { join, dirname, extname, normalize, isAbsolute } from "node:path";
 import { fileURLToPath } from "node:url";
 import { joinSession, createCanvas, CanvasError } from "@github/copilot-sdk/extension";
-import { analyzeArtifacts, loadLatest, loadRun, listRuns, readArtifact, TOOL_PATHS } from "./lib/pipeline.mjs";
+import { analyzeArtifacts, loadLatest, loadRun, listRuns, readArtifact, configureWorkspace, TOOL_PATHS } from "./lib/pipeline.mjs";
 import { buildAnalysisPrompt, buildRunPrompt } from "./lib/prompt.mjs";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
@@ -322,3 +322,8 @@ sessionRef = await joinSession({
         },
     ],
 });
+
+// Scope persisted runs to this session's workspace so opening the canvas in a
+// different project never surfaces another project's runs (the extension files —
+// and thus the default runs directory — are shared across all sessions).
+configureWorkspace(sessionRef?.workspacePath);
