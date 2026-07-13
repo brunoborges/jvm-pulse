@@ -255,6 +255,13 @@ sessionRef = await joinSession({
                             gc: report.gc?.summary ?? null,
                             gcConfig: report.gcConfig ?? null,
                             jfrAvailable: report.jfr?.available ?? false,
+                            signals: report.jfr ? {
+                                contention: report.jfr.contention?.available ? { count: report.jfr.contention.count, totalMs: report.jfr.contention.totalMs, maxMs: report.jfr.contention.maxMs } : null,
+                                safepoints: report.jfr.safepoints?.available ? { count: report.jfr.safepoints.count, totalMs: report.jfr.safepoints.totalMs, maxMs: report.jfr.safepoints.maxMs } : null,
+                                exceptions: report.jfr.exceptions?.available ? { total: report.jfr.exceptions.total, errors: report.jfr.exceptions.errors } : null,
+                                threads: report.jfr.threads?.available ? { peak: report.jfr.threads.peak, current: report.jfr.threads.current } : null,
+                                io: report.jfr.io?.available ? true : null,
+                            } : null,
                         };
                     },
                 },
@@ -312,8 +319,15 @@ sessionRef = await joinSession({
                         jfr.available
                             ? `JFR: ${jfr.sampleCount ?? 0} execution samples, ~${jfr.totalAllocatedMb ?? 0} MB sampled allocations.`
                             : "JFR: not available (no recording ingested).",
-                        `Results are now visualized in the JVM Pulse canvas. Use the "Analyze with AI" button (or ask me to analyze) for tuning recommendations.`,
                     ];
+                    const signals = [];
+                    if (jfr.contention?.available) signals.push(`lock contention ${Math.round(jfr.contention.totalMs)} ms across ${jfr.contention.count} blocks`);
+                    if (jfr.safepoints?.available) signals.push(`${jfr.safepoints.count} safepoints (max TTSP ${Number(jfr.safepoints.maxMs).toFixed(2)} ms)`);
+                    if (jfr.exceptions?.available) signals.push(`${jfr.exceptions.total} throwables (${jfr.exceptions.errors} errors)`);
+                    if (jfr.threads?.available) signals.push(`peak ${jfr.threads.peak} threads`);
+                    if (jfr.io?.available) signals.push("slow I/O recorded");
+                    if (signals.length) lines.push(`Signals: ${signals.join(", ")}.`);
+                    lines.push(`Results are now visualized in the JVM Pulse canvas. Use the "Analyze with AI" button (or ask me to analyze) for tuning recommendations.`);
                     return lines.join("\n");
                 } catch (err) {
                     return `Failed to ingest GC/JFR artifacts: ${err?.message || err}`;

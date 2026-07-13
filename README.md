@@ -133,6 +133,15 @@ existing `gc.log` and `.jfr` on disk — no run required.
 - **Top allocations** — allocated volume by type (JFR object sampling).
 - **Hot methods** — top self-time methods (JFR execution sampling), with your
   application code called out from JDK internals.
+- **Lock contention** — threads blocked entering monitors, aggregated by lock
+  class (JFR `jdk.JavaMonitorEnter`), so a hot lock stops hiding behind GC.
+- **Safepoints** — time-to-safepoint synchronization latency (count, total, max,
+  avg) that stop-the-world pauses attribute to neither GC nor your code.
+- **Exceptions & errors** — throwables created during the run and the top throw
+  sites, to catch exception storms.
+- **Threads** — live thread population over the run (active vs. peak).
+- **Slow I/O** — blocking socket/file operations over the JFR threshold, by
+  endpoint/path, with bytes and count.
 - **Environment** — JVM, collector, threads, workload label, GC log source.
 - **`jfr view all-views`** — the raw JFR views report, inline.
 
@@ -148,7 +157,10 @@ existing `gc.log` and `.jfr` on disk — no run required.
    (`-XX:StartFlightRecording=maxsize=…M,filename=dump.jfr,settings=profile`).
    The `jfr` CLI extracts CPU load, heap samples, top allocations and hot methods
    (bounded server-side `jfr view` aggregations, safe for long recordings), plus
-   a full `jfr view all-views` report.
+   lock contention, safepoints, exceptions/errors, thread population and slow
+   socket/file I/O (aggregated from the corresponding events — all naturally
+   bounded by the `profile` settings' thresholds), and a full `jfr view
+   all-views` report.
 
 ## Layout
 

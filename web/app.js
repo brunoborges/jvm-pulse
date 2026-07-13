@@ -160,6 +160,21 @@ function humanBytesMb(mb, d = 1) {
   return `${fmt(mb * 1024, 0)} KB`;
 }
 
+// Human-friendly byte counts from a raw byte value.
+function humanBytes(b, d = 1) {
+  if (b == null || Number.isNaN(b)) return "–";
+  if (b >= 1 << 30) return `${fmt(b / (1 << 30), d)} GB`;
+  if (b >= 1 << 20) return `${fmt(b / (1 << 20), d)} MB`;
+  if (b >= 1024) return `${fmt(b / 1024, 0)} KB`;
+  return `${fmt(b, 0)} B`;
+}
+
+// Format a millisecond duration, promoting to seconds past 1 s.
+function humanMs(v, d = 0) {
+  if (v == null || Number.isNaN(v)) return "–";
+  return v >= 1000 ? `${fmt(v / 1000, 2)} s` : `${fmt(v, d)} ms`;
+}
+
 const worseOf = (a, b) => (["good", "warn", "bad", "neutral"].indexOf(b) > ["good", "warn", "bad", "neutral"].indexOf(a) && b !== "neutral" ? b : a);
 const band = (v, goodBelow, warnBelow) => (v == null ? "neutral" : v < goodBelow ? "good" : v <= warnBelow ? "warn" : "bad");
 const bandAbove = (v, goodAbove, warnAbove) => (v == null ? "neutral" : v >= goodAbove ? "good" : v >= warnAbove ? "warn" : "bad");
@@ -206,6 +221,11 @@ function verdictBlock(a, s, jfr) {
   if (a.ar != null) chips.push(chip("Alloc", `${fmt(a.ar, 0)} MB/s`, a.arS));
   const top = jfr && jfr.topAllocations && jfr.topAllocations[0];
   if (top) chips.push(chip("Top type", `${shortClass(top.name)} ${fmt(top.pressurePct, 0)}%`, "neutral"));
+  const c = jfr && jfr.contention;
+  if (c && c.available && c.totalMs > 50) {
+    const frac = s.runtimeSec ? c.totalMs / 1000 / s.runtimeSec : null;
+    chips.push(chip("Lock wait", humanMs(c.totalMs), band(frac, 0.05, 0.2)));
+  }
 
   return `<div class="verdict reveal" data-status="${a.overall}" style="--i:0">
     <span class="badge"><span class="dot"></span>${a.overall === "good" ? "Healthy" : a.overall === "warn" ? "Attention" : a.overall === "bad" ? "Critical" : "Profile"}</span>
@@ -231,6 +251,107 @@ function subStat(label, value, unit) {
 
 function sectionHeader(title, count) {
   return `<div class="section"><h2>${esc(title)}</h2><span class="rule"></span>${count != null ? `<span class="count">${esc(count)}</span>` : ""}</div>`;
+}
+
+// Build the troubleshooting panels beyond GC: lock contention, safepoints,
+// exceptions, thread population, and slow I/O — all sourced from JFR. Each panel
+// is only produced when its signal is present in the recording.
+function signalPanels(jfr, s) {
+  const panels = [];
+
+  // Lock contention — threads blocked entering a monitor, by lock class.
+  const c = jfr.contention;
+  if (c && c.available && c.byMonitor && c.byMonitor.length) {
+    const items = c.byMonitor.map((m) => ({
+      name: m.name,
+      label: shortClass(m.name),
+      value: m.totalMs,
+      sub: `${fmt(m.count, 0)}×`,
+      color: "var(--gc-old)",
+    }));
+    panels.push(panel("Lock contention",
+      `Threads blocked entering monitors: ${fmt(c.count, 0)} events, ${humanMs(c.totalMs)} total blocked, max ${humanMs(c.maxMs)}. By lock class.`,
+      barList(items, { ranked: true, valueFmt: (v) => humanMs(v) }), "wide"));
+  }
+
+  // Safepoints — time-to-safepoint synchronization latency (not GC work).
+  const sp = jfr.safepoints;
+  if (sp && sp.available) {
+    const body = `<div class="substats">` + [
+      subStat("Safepoints", fmt(sp.count, 0)),
+      subStat("Total TTSP", fmt(sp.totalMs, 1), "ms"),
+      subStat("Max TTSP", fmt(sp.maxMs, 2), "ms"),
+      subStat("Avg TTSP", fmt(sp.avgMs, 3), "ms"),
+    ].join("") + `</div>`;
+    panels.push(panel("Safepoints", "Time-to-safepoint — stop-the-world synchronization latency the GC timeline doesn't show.", body));
+  }
+
+  // Exceptions & errors — throwables created, with top throw sites.
+  const ex = jfr.exceptions;
+  if (ex && ex.available) {
+    const stats = `<div class="substats">` + [
+      subStat("Throwables", fmt(ex.total, 0)),
+      subStat("Errors", fmt(ex.errors, 0)),
+    ].join("") + `</div>`;
+    let sites = "";
+    if (ex.bySite && ex.bySite.length) {
+      const items = ex.bySite.map((x) => ({
+        name: x.name,
+        label: shortMethod(x.name),
+        value: x.count,
+        owner: isJdk(x.name) ? "" : "App",
+        color: isJdk(x.name) ? "var(--status-neutral)" : "var(--accent)",
+      }));
+      sites = barList(items, { ranked: true, valueFmt: (v) => fmt(v, 0) });
+    }
+    panels.push(panel("Exceptions & errors", "Throwables created during the run, with the top throw sites (JFR).", stats + sites));
+  }
+
+  // Threads — live population over the run.
+  const th = jfr.threads;
+  if (th && th.available && th.timeline && th.timeline.length) {
+    const chart = lineChart([
+      { name: "active", color: "var(--accent)", points: th.timeline.map((d) => ({ t: d.t, v: d.active })) },
+      { name: "peak", color: "var(--gc-old)", points: th.timeline.map((d) => ({ t: d.t, v: d.peak })) },
+    ], { ylabel: "Threads", yfmt: (v) => fmt(v, 0) }) + legend([
+      { color: "var(--accent)", label: "Active" },
+      { color: "var(--gc-old)", label: "Peak" },
+    ]);
+    panels.push(panel("Threads", `Live thread count over the run — peak ${fmt(th.peak, 0)}, ${fmt(th.current, 0)} at end.`, chart));
+  }
+
+  // Slow I/O — blocking socket/file ops over the JFR threshold, by endpoint.
+  const io = jfr.io;
+  if (io && io.available) {
+    const rows = [];
+    const add = (kind, agg, color) => {
+      if (!agg || !agg.available) return;
+      for (const t of agg.top) {
+        const short = t.name.includes("/") ? t.name.split("/").filter(Boolean).pop() : t.name;
+        rows.push({
+          name: `${kind}: ${t.name}`,
+          label: `${kind} · ${short}`,
+          value: t.totalMs,
+          sub: `${humanBytes(t.bytes)} · ${fmt(t.count, 0)}×`,
+          color,
+        });
+      }
+    };
+    add("Socket read", io.socketRead, "var(--gc-young)");
+    add("Socket write", io.socketWrite, "var(--gc-mixed)");
+    add("File read", io.fileRead, "var(--gc-system)");
+    add("File write", io.fileWrite, "var(--gc-old)");
+    rows.sort((a, b) => b.value - a.value);
+    const items = rows.slice(0, 12);
+    if (items.length) {
+      const totalMs = io.socketRead.totalMs + io.socketWrite.totalMs + io.fileRead.totalMs + io.fileWrite.totalMs;
+      panels.push(panel("Slow I/O",
+        `Blocking socket/file operations over the JFR threshold: ${humanMs(totalMs)} total. By endpoint/path.`,
+        barList(items, { ranked: true, valueFmt: (v) => humanMs(v) }), "wide"));
+    }
+  }
+
+  return panels;
 }
 
 function renderReport(r) {
@@ -345,6 +466,15 @@ function renderReport(r) {
   out.push(`<div class="panels">` + panels.map((p, i) =>
     p.replace('<div class="panel ', `<div style="--i:${Math.min(i + 3, 9)}" class="panel reveal `)
   ).join("") + `</div>`);
+
+  // 3b. Concurrency, threads & I/O — troubleshooting signals from JFR beyond GC.
+  const sigPanels = signalPanels(jfr, s);
+  if (sigPanels.length) {
+    out.push(sectionHeader("Concurrency, threads & I/O", `${sigPanels.length} panels`));
+    out.push(`<div class="panels">` + sigPanels.map((p, i) =>
+      p.replace('<div class="panel ', `<div style="--i:${Math.min(i + 3, 9)}" class="panel reveal `)
+    ).join("") + `</div>`);
+  }
 
   // 4. Environment
   const jvm = r.jvm || {};
