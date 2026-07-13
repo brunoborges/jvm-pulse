@@ -44,10 +44,12 @@ locations; inspect them with the `tool_status` canvas action.
 
 ## Install
 
-JVM Pulse is a folder-based canvas extension for the GitHub Copilot app. Drop it
-into an extensions directory and reload.
+JVM Pulse is a folder-based canvas extension for the GitHub Copilot app. Install
+it either by cloning the repo into an extensions directory (below) or from the
+Copilot app UI. Either way, reload your session afterwards and **JVM Pulse**
+appears as an available canvas.
 
-### Into a single project (recommended)
+### Clone it (recommended)
 
 From the root of your Java project:
 
@@ -58,19 +60,12 @@ git clone https://github.com/brunoborges/jvm-pulse.git .github/extensions/jvm-pu
 The extension loads automatically for GitHub Copilot app sessions in that repo. (You can
 also add it as a git submodule, or just copy the files in.)
 
-### For all your projects (user-level)
-
-Clone it into your personal GitHub Copilot app extensions directory:
-
-```bash
-git clone https://github.com/brunoborges/jvm-pulse.git \
-  "$HOME/Library/Application Support/com.github.githubapp/extensions/jvm-pulse"   # macOS
-# Linux: ~/.config/github-copilot/extensions/jvm-pulse (or your platform's config dir)
-```
+Cloning keeps you current: run `git pull` in the extension directory whenever you
+want the latest release.
 
 ### From the Copilot app
 
-If you use the GitHub Copilot app, you can install JVM Pulse straight from the UI:
+Alternatively, install JVM Pulse straight from the UI:
 
 1. In a session, open the right-side panel and click the **+** (add canvas
    extension) button, next to **Terminal**.
@@ -89,17 +84,8 @@ If you use the GitHub Copilot app, you can install JVM Pulse straight from the U
    ![Install location](docs/install-3-location.png)
 
 > **Keeping up to date:** this flow installs a *copy* of the `main` branch, so it
-> won't pick up new releases automatically. To stay current, instead `git clone`
-> the repo into your extensions directory and `git pull` when you want updates:
->
-> ```bash
-> git clone https://github.com/brunoborges/jvm-pulse.git \
->   ~/.copilot/extensions/jvm-pulse
-> # later: cd ~/.copilot/extensions/jvm-pulse && git pull
-> ```
-
-After installing, start (or reload) a GitHub Copilot app session — **JVM Pulse**
-appears as an available canvas.
+> won't pick up new releases automatically. To stay current instead, use the
+> [clone method](#clone-it-recommended) above and `git pull` when you want updates.
 
 ## Usage
 
