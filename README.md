@@ -114,6 +114,10 @@ Copilot what workload to run), or drive it from chat.
 Already have artifacts? Ask Copilot to call **`jvm_pulse_ingest`** with an
 existing `gc.log` and `.jfr` on disk — no run required.
 
+> 📖 **See it end-to-end:** the [profiling walkthrough](docs/walkthrough.md)
+> follows a real run — from **Run analysis** to a root-cause diagnosis, tuning
+> recommendations, and a before/after **Compare** — with screenshots of each step.
+
 ### Actions & tools
 
 - **`jvm_pulse_ingest`** *(agent tool)* — `{ gcLogPath, jfrPath?, label?, command? }`.
