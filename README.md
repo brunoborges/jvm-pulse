@@ -3,8 +3,9 @@
 **Profile any Java project's garbage collection and flight-recorder telemetry —
 right inside GitHub Copilot.**
 
-JVM Pulse is a [GitHub Copilot CLI](https://github.com/github/copilot-cli)
-**canvas extension**. It runs a representative workload for your Java project
+JVM Pulse is a **canvas extension** for the
+[GitHub Copilot app](https://docs.github.com/en/copilot/how-tos/github-copilot-app/working-with-canvas-extensions).
+It runs a representative workload for your Java project
 with GC logging + JFR enabled, analyzes the results with Microsoft
 [GCToolkit](https://github.com/microsoft/gctoolkit) and the JDK `jfr` CLI, and
 visualizes everything — throughput, pauses, heap, allocations, hot methods — in
@@ -43,8 +44,8 @@ locations; inspect them with the `tool_status` canvas action.
 
 ## Install
 
-JVM Pulse is a folder-based Copilot CLI extension. Drop it into an extensions
-directory and reload.
+JVM Pulse is a folder-based canvas extension for the GitHub Copilot app. Drop it
+into an extensions directory and reload.
 
 ### Into a single project (recommended)
 
@@ -54,12 +55,12 @@ From the root of your Java project:
 git clone https://github.com/brunoborges/jvm-pulse.git .github/extensions/jvm-pulse
 ```
 
-The extension loads automatically for Copilot CLI sessions in that repo. (You can
+The extension loads automatically for GitHub Copilot app sessions in that repo. (You can
 also add it as a git submodule, or just copy the files in.)
 
 ### For all your projects (user-level)
 
-Clone it into your personal Copilot CLI extensions directory:
+Clone it into your personal GitHub Copilot app extensions directory:
 
 ```bash
 git clone https://github.com/brunoborges/jvm-pulse.git \
@@ -72,8 +73,8 @@ git clone https://github.com/brunoborges/jvm-pulse.git \
 If you use the GitHub Copilot app, ask it to install the extension from this
 repo URL and it will place the files for you and reload.
 
-After installing, start (or reload) a Copilot CLI session — **JVM Pulse** appears
-as an available canvas.
+After installing, start (or reload) a GitHub Copilot app session — **JVM Pulse**
+appears as an available canvas.
 
 ## Usage
 
