@@ -18,7 +18,12 @@ and JDK, launch a workload with the right flags, and hand the artifacts back for
 analysis. It works with Maven, Gradle, JMH, runnable jars, jbang scripts — any
 Java workload Copilot can start.
 
+<details>
+<summary>Screenshot: JVM Pulse dashboard</summary>
+
 ![JVM Pulse dashboard](docs/dashboard.png)
+
+</details>
 
 ## Requirements
 
