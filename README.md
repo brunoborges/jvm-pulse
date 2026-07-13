@@ -70,8 +70,33 @@ git clone https://github.com/brunoborges/jvm-pulse.git \
 
 ### From the Copilot app
 
-If you use the GitHub Copilot app, ask it to install the extension from this
-repo URL and it will place the files for you and reload.
+If you use the GitHub Copilot app, you can install JVM Pulse straight from the UI:
+
+1. In a session, open the right-side panel and click the **+** (add canvas
+   extension) button, next to **Terminal**.
+
+   ![Add canvas extension button](docs/install-1-add-button.png)
+
+2. Choose **Import canvas from repo** (under *Discover more*).
+
+   ![Import canvas from repo](docs/install-2-import-from-repo.png)
+
+3. Paste this repository's URL: `https://github.com/brunoborges/jvm-pulse`
+4. Pick an **install location**. We recommend **User scope (`~/.copilot`)** so the
+   extension is available across all your projects. (Project scope drops it into
+   `.github/`, and Session scope installs it for the current session only.)
+
+   ![Install location](docs/install-3-location.png)
+
+> **Keeping up to date:** this flow installs a *copy* of the `main` branch, so it
+> won't pick up new releases automatically. To stay current, instead `git clone`
+> the repo into your extensions directory and `git pull` when you want updates:
+>
+> ```bash
+> git clone https://github.com/brunoborges/jvm-pulse.git \
+>   ~/.copilot/extensions/jvm-pulse
+> # later: cd ~/.copilot/extensions/jvm-pulse && git pull
+> ```
 
 After installing, start (or reload) a GitHub Copilot app session — **JVM Pulse**
 appears as an available canvas.
