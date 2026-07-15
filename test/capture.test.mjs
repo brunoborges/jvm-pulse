@@ -204,7 +204,7 @@ test("docker attach fails with an actionable message when the container has no j
     ]);
     container = stdout.trim();
     await assert.rejects(
-      attach({ transport: { type: "docker", container }, outDir }),
+      attach({ transport: { type: "docker", container }, outDir, durationMs: 1000 }),
       /no jcmd/i
     );
   } finally {
@@ -217,7 +217,7 @@ test("attach rejects an explicit --pid when --docker is also given", async () =>
   const outDir = await mkdtemp(pathJoin(tmpdir(), "pulse-test-"));
   try {
     await assert.rejects(
-      attach({ pid: "12345", transport: { type: "docker", container: "whatever" }, outDir }),
+      attach({ pid: "12345", transport: { type: "docker", container: "whatever" }, outDir, durationMs: 1000 }),
       /--pid is not supported with --docker/
     );
   } finally {
