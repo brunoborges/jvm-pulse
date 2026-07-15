@@ -126,3 +126,75 @@ test("attach (local) issues VM.log, JFR.start, and JFR.stop against a real runni
     await rm(srcDir, { recursive: true, force: true });
   }
 });
+
+test("docker attach auto-discovers the in-container pid when --pid is omitted", async (t) => {
+  try {
+    await execFileAsync("docker", ["--version"]);
+  } catch {
+    t.skip("docker not available in this environment");
+    return;
+  }
+  const outDir = await mkdtemp(pathJoin(tmpdir(), "pulse-test-"));
+  let container;
+  try {
+    // Auto-discovery needs a real java process in the container to find —
+    // `jps -q` (or the PID-1 fallback) has nothing to discover against a
+    // bare `sleep`. Compile and run a trivial sleeper as the container's
+    // entrypoint (exec'd, so it's PID 1, matching a real single-process
+    // container like rating-engine's own jib-built image).
+    const { stdout } = await execFileAsync("docker", [
+      "run", "-d", "--rm", "eclipse-temurin:21-jdk",
+      "sh", "-c",
+      "echo 'public class Sleeper { public static void main(String[] a) throws Exception { Thread.sleep(300000); } }' > /tmp/Sleeper.java " +
+        "&& javac /tmp/Sleeper.java -d /tmp && exec java -cp /tmp Sleeper",
+    ]);
+    container = stdout.trim();
+    await new Promise((r) => setTimeout(r, 3000)); // let javac/java finish starting inside the container
+    const result = await attach({
+      transport: { type: "docker", container },
+      outDir,
+      durationMs: 500,
+    });
+    assert.ok(result.pid);
+  } finally {
+    if (container) await execFileAsync("docker", ["rm", "-f", container]).catch(() => {});
+    await rm(outDir, { recursive: true, force: true });
+  }
+});
+
+test("docker attach fails with an actionable message when the container has no jcmd", async (t) => {
+  try {
+    await execFileAsync("docker", ["--version"]);
+  } catch {
+    t.skip("docker not available in this environment");
+    return;
+  }
+  const outDir = await mkdtemp(pathJoin(tmpdir(), "pulse-test-"));
+  let container;
+  try {
+    const { stdout } = await execFileAsync("docker", [
+      "run", "-d", "--rm", "eclipse-temurin:21-jre",
+      "sh", "-c", "sleep 300",
+    ]);
+    container = stdout.trim();
+    await assert.rejects(
+      attach({ transport: { type: "docker", container }, outDir }),
+      /no jcmd/i
+    );
+  } finally {
+    if (container) await execFileAsync("docker", ["rm", "-f", container]).catch(() => {});
+    await rm(outDir, { recursive: true, force: true });
+  }
+});
+
+test("attach rejects an explicit --pid when --docker is also given", async () => {
+  const outDir = await mkdtemp(pathJoin(tmpdir(), "pulse-test-"));
+  try {
+    await assert.rejects(
+      attach({ pid: "12345", transport: { type: "docker", container: "whatever" }, outDir }),
+      /--pid is not supported with --docker/
+    );
+  } finally {
+    await rm(outDir, { recursive: true, force: true });
+  }
+});
