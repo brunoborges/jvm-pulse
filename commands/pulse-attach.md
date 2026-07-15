@@ -17,4 +17,10 @@ recording write is broken under musl, even with `gcompat` installed — a
 genuinely glibc-linked JDK image is required, e.g. Debian/Ubuntu/Amazon-Linux
 based, not Alpine). Report this back to the user rather than retrying blindly.
 
-Report the printed `Report: <path>/report.html` path back to the user.
+Then open `<path>/report.html` and visually confirm it renders — real KPI
+numbers, no blank panels, no visible JS error. Don't just relay the printed
+path: only actually looking catches real bugs (a Docker/JVM libc mismatch,
+a Windows-only crash, a force-kill silently losing JFR data all surfaced
+this way). If you have no way to open a browser, read `report.json`'s
+`gc.summary`/`jfr.available` fields directly and summarize the real numbers
+instead of only relaying the file path.

@@ -77,6 +77,22 @@ you're unsure which libc a target image uses.
 No capture step at all — analyzes and renders a report from files a CI job
 already produced.
 
+### Comparing runs
+
+    pulse compare <selectedRunId> <baselineRunId>       # exactly 2 runs
+    pulse sweep <runId1> <runId2> [<runId3> ...]         # 3+ runs
+
+`compare` is a two-run baseline/selected delta view (per-metric before/after
+with a Δ column). `sweep` is for an ordered set of 3+ runs against the same
+workload — e.g. the same load run at `-Xmx1g`/`-Xmx2g`/`-Xmx4g`, or across a
+few candidate GC flags. It highlights the best value per metric and charts
+each metric's trend across the whole run set. Don't try to force a 3+-run
+comparison through `compare` by calling it repeatedly pairwise — a sweep's
+most useful finding is often a metric that gets *worse* partway through
+(e.g. max pause time is not monotonic with heap size — a bigger heap means
+rarer but longer Full GCs), which only shows up by looking at all N runs
+together, not from three separate two-way deltas.
+
 ## CLI reference
 
 ```
@@ -84,6 +100,7 @@ pulse ingest --gc-log <path> [--jfr <path>] [--label <str>] [--command <str>]
 pulse run [--duration <dur>] [--jfr-max-mb <n>] [--label <str>] [--cwd <dir>] -- <command...>
 pulse attach [--pid <n> | --docker <container>] [--duration <dur>] [--label <str>] [--jfr-max-mb <n>]
 pulse compare <runId> <baselineRunId>
+pulse sweep <runId1> <runId2> [<runId3> ...]
 pulse analyze-prompt [--run <runId>]
 ```
 
@@ -111,6 +128,16 @@ pulse analyze-prompt [--run <runId>]
 4. **Verify, don't guess** — after applying a suggested change, re-capture
    and run `pulse compare <newRunId> <baselineRunId>` to confirm it
    actually moved throughput/pause/alloc-rate in the right direction.
+   Testing more than one candidate value (a heap-size or GC-flag sweep)?
+   Capture all of them first, then `pulse sweep <runId...>` once at the
+   end — not pairwise `compare` calls.
+5. **Always open the resulting HTML and look at it** — every step above
+   that produces a report/compare/sweep file is incomplete until you've
+   actually opened it and confirmed it renders (real numbers, no blank
+   panels, no JS error). This isn't a formality: a broken JVM/Docker
+   combination, a platform-specific crash, and a silently-lost-JFR-data
+   bug were all caught this way during this tool's own validation — never
+   by trusting a clean exit code or a printed file path alone.
 
 ## Known limitations
 

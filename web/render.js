@@ -668,3 +668,71 @@ function renderCompare(aReport, bReport) {
 
   return out.join("");
 }
+
+// Small line+dot chart for a metric's value across an ordered list of runs
+// (not a time series — x is run index, each point tooltipped with its run
+// label since a sweep is usually too short for readable x-axis tick labels).
+function sweepTrendChart(points, { w = 560, h = 220, ylabel = "", yfmt = (v) => fmt(v, 0) } = {}) {
+  if (!points.length) return emptyChart(w, h);
+  const ys = points.map((p) => p.v);
+  const ymax = Math.max(...ys, 1) * 1.08;
+  const ymin = Math.min(0, Math.min(...ys));
+  const f = frame({ w, h, xmin: 0, xmax: Math.max(points.length - 1, 1), ymin, ymax, xlabel: "Run (see legend above)", ylabel, yfmt });
+  const d = points.map((p, i) => `${i ? "L" : "M"}${f.px(p.t).toFixed(1)},${f.py(p.v).toFixed(1)}`).join(" ");
+  let dots = "";
+  for (const p of points) {
+    dots += `<circle class="dot" cx="${f.px(p.t).toFixed(1)}" cy="${f.py(p.v).toFixed(1)}" r="4" fill="var(--accent)"><title>${esc(p.label)}: ${esc(yfmt(p.v))}</title></circle>`;
+  }
+  return svgWrap(w, h, f.g + `<path d="${d}" fill="none" stroke="var(--accent)" stroke-width="1.6"/>` + dots);
+}
+
+// N-way comparison across an ordered list of runs (e.g. a heap-size or
+// GC-flag sweep) — unlike renderCompare's baseline/selected delta view,
+// this highlights the best value per metric and charts each metric's trend
+// across the whole run set, not just a two-point before/after.
+function renderSweep(reports) {
+  const summaries = reports.map((r) => (r.gc && r.gc.summary) || {});
+  const labels = reports.map((r, i) => r.label || `Run ${i + 1}`);
+  const out = [];
+
+  out.push(sectionHeader("Sweep", `${reports.length} runs`));
+
+  out.push(`<div class="cmp-head reveal" style="--i:0">` +
+    reports.map((r, i) => `<div class="cmp-card">
+      <span class="cmp-tag" style="background:${PALETTE[i % PALETTE.length]}22;color:${PALETTE[i % PALETTE.length]}">${i + 1}. ${esc(labels[i])}</span>
+      <div class="cmp-card-when">${esc(fmtRunTime(r.generatedAt) || r.runId || "")}</div>
+    </div>`).join("") +
+    `</div>`);
+
+  const headCells = labels.map((l, i) => `<th class="num" style="color:${PALETTE[i % PALETTE.length]}">${i + 1}</th>`).join("");
+  const rows = CMP_METRICS.map((m) => {
+    const values = summaries.map((s) => m.get(s));
+    const numeric = values.filter((v) => v != null && !Number.isNaN(v));
+    let bestVal = null;
+    if (numeric.length && m.better !== "neutral") {
+      bestVal = m.better === "higher" ? Math.max(...numeric) : Math.min(...numeric);
+    }
+    const cells = values.map((v) => {
+      const isBest = bestVal != null && v === bestVal;
+      const cell = cmpValueCell(v, m.unit, m.d);
+      return isBest ? cell.replace('<td class="num"', '<td class="num best"') : cell;
+    }).join("");
+    return `<tr><td class="k">${esc(m.label)}</td>${cells}</tr>`;
+  }).join("");
+  out.push(`<div class="panels reveal" style="--i:1"><div class="panel wide">
+    <table class="cmp-table">
+      <thead><tr><th>Metric</th>${headCells}</tr></thead>
+      <tbody>${rows}</tbody>
+    </table>
+  </div></div>`);
+
+  const TREND_LABELS = ["Throughput", "p99 pause", "Max pause", "GC events"];
+  const charts = CMP_METRICS.filter((m) => TREND_LABELS.includes(m.label)).map((m) => {
+    const points = summaries.map((s, i) => ({ t: i, v: m.get(s), label: labels[i] })).filter((p) => p.v != null && !Number.isNaN(p.v));
+    return `<div class="panel"><h3>${esc(m.label)} across runs</h3>${sweepTrendChart(points, { ylabel: m.unit || "", yfmt: (v) => fmt(v, m.d) })}</div>`;
+  }).join("");
+  out.push(sectionHeader("Trends"));
+  out.push(`<div class="panels reveal" style="--i:2">${charts}</div>`);
+
+  return out.join("");
+}

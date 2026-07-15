@@ -8,7 +8,7 @@ import { fileURLToPath } from "node:url";
 import { copyFile, mkdir } from "node:fs/promises";
 import { analyzeArtifacts, loadRun, loadLatest, configureWorkspace } from "../lib/pipeline.mjs";
 import { injectLaunch, attach } from "../lib/capture.mjs";
-import { writeStaticReport, writeStaticCompare } from "../lib/report-static.mjs";
+import { writeStaticReport, writeStaticCompare, writeStaticSweep } from "../lib/report-static.mjs";
 import { buildAnalysisPrompt } from "../lib/prompt.mjs";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
@@ -141,6 +141,15 @@ async function cmdCompare(argv) {
   console.log(`Compare report: ${htmlPath}`);
 }
 
+async function cmdSweep(argv) {
+  if (argv.length < 2) fail("sweep requires 2+ <runId> arguments, in the order you want them compared");
+  const reports = await Promise.all(argv.map((runId) => loadRun(runId)));
+  const missing = argv.filter((runId, i) => !reports[i]);
+  if (missing.length) fail(`run(s) not found: ${missing.join(", ")}`);
+  const htmlPath = await writeStaticSweep(reports);
+  console.log(`Sweep report: ${htmlPath}`);
+}
+
 async function cmdAnalyzePrompt(argv) {
   const runFlagIdx = argv.indexOf("--run");
   const runId = runFlagIdx !== -1 ? argv[runFlagIdx + 1] : null;
@@ -165,9 +174,10 @@ async function main() {
     case "run": return cmdRun(rest);
     case "attach": return cmdAttach(rest);
     case "compare": return cmdCompare(rest);
+    case "sweep": return cmdSweep(rest);
     case "analyze-prompt": return cmdAnalyzePrompt(rest);
     default:
-      fail("usage: pulse <ingest|run|attach|compare|analyze-prompt> ...");
+      fail("usage: pulse <ingest|run|attach|compare|sweep|analyze-prompt> ...");
   }
 }
 

@@ -37,3 +37,20 @@ test("pulse ingest fails clearly when the gc-log path doesn't exist", async () =
     }
   );
 });
+
+test("pulse sweep requires at least 2 runId arguments", async () => {
+  await assert.rejects(execFileAsync(process.execPath, [CLI, "sweep", "only-one-run"]), (err) => {
+    assert.match(err.stderr, /sweep requires 2\+/);
+    return true;
+  });
+});
+
+test("pulse sweep fails clearly when a run doesn't exist", async () => {
+  await assert.rejects(
+    execFileAsync(process.execPath, [CLI, "sweep", "does-not-exist-1", "does-not-exist-2"]),
+    (err) => {
+      assert.match(err.stderr, /run\(s\) not found: does-not-exist-1, does-not-exist-2/);
+      return true;
+    }
+  );
+});

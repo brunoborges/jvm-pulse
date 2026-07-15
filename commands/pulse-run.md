@@ -22,4 +22,11 @@ convention) and `pulse` is being invoked from somewhere else, add
 `--cwd <target-project-dir>` too — otherwise the app may fail to find its
 config and crash on boot.
 
-Report the printed `Report: <path>/report.html` path back to the user.
+Then open `<path>/report.html` and visually confirm it renders — real KPI
+numbers (not "–" placeholders throughout), no blank panels, no visible JS
+error. Don't just relay the printed path: this only works if you actually
+look — real bugs (a Docker/JVM libc mismatch, a Windows-only crash, a
+force-kill silently losing JFR data) were only caught this way, not by
+trusting a clean exit code. If you have no way to open a browser, read
+`report.json`'s `gc.summary`/`jfr.available` fields directly and summarize
+the real numbers instead of only relaying the file path.

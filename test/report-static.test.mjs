@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { renderStaticReportHtml, renderStaticCompareHtml } from "../lib/report-static.mjs";
+import { renderStaticReportHtml, renderStaticCompareHtml, renderStaticSweepHtml } from "../lib/report-static.mjs";
 
 const SAMPLE_REPORT = {
   runId: "2026-07-15T12-00-00-000Z",
@@ -29,6 +29,17 @@ test("renderStaticCompareHtml embeds both reports and calls renderCompare", asyn
   assert.ok(html.includes("renderCompare(BASELINE, SELECTED)"));
   assert.ok(html.includes(JSON.stringify(b)));
   assert.ok(html.includes(JSON.stringify(SAMPLE_REPORT)));
+});
+
+test("renderStaticSweepHtml embeds all N reports and calls renderSweep", async () => {
+  const runs = [
+    { ...SAMPLE_REPORT, runId: "run-1g", label: "1GB heap" },
+    { ...SAMPLE_REPORT, runId: "run-2g", label: "2GB heap" },
+    { ...SAMPLE_REPORT, runId: "run-4g", label: "4GB heap" },
+  ];
+  const html = await renderStaticSweepHtml(runs);
+  assert.ok(html.includes("renderSweep(REPORTS)"));
+  for (const r of runs) assert.ok(html.includes(JSON.stringify(r)), `${r.label} should be embedded verbatim`);
 });
 
 test("renderStaticReportHtml escapes </script> in embedded JSON to prevent stored XSS", async () => {

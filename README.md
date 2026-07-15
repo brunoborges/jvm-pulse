@@ -112,8 +112,8 @@ reference.
 Clone this repo into your Claude Code plugins directory (or add it via
 Claude Code's `/plugin` marketplace flow, once published), and **JVM Pulse**
 becomes available as a skill plus `/pulse:run`, `/pulse:attach`,
-`/pulse:report`, `/pulse:compare`, and `/pulse:analyze` commands — thin
-wrappers over the same CLI described above.
+`/pulse:report`, `/pulse:compare`, `/pulse:sweep`, and `/pulse:analyze`
+commands — thin wrappers over the same CLI described above.
 
 ## Usage
 

@@ -548,6 +548,7 @@ table.cmp-table td.delta[data-status="bad"] { color: var(--status-bad); }
 table.cmp-table td.delta[data-status="neutral"] { color: var(--ink-muted); }
 table.cmp-table td.delta .arw { margin-right: 0.25rem; font-size: 10px; }
 table.cmp-table td.delta .pctc { color: var(--ink-muted); font-weight: 400; margin-left: 0.25rem; }
+table.cmp-table td.best { color: var(--status-good); font-weight: var(--font-weight-semibold, 600); background: color-mix(in srgb, var(--status-good) 10%, transparent); }
 
 /* --- Command / flag diff ------------------------------------------------- */
 .cmd-diff .cmd-diff-row { display: flex; align-items: flex-start; gap: 0.6rem; margin-bottom: 0.6rem; }
