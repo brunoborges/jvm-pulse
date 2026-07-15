@@ -1,0 +1,7 @@
+---
+description: Report the most recent jvm-pulse report without re-running anything
+---
+
+Find the most recently modified `runs/*/report.html` (there's no separate
+CLI subcommand for this — it's a plain file lookup) and tell the user its
+path. If none exists yet, say so and suggest `/pulse:run` or `/pulse:attach`.
