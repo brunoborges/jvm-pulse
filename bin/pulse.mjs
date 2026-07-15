@@ -140,7 +140,7 @@ async function cmdAnalyzePrompt(argv) {
   const runFlagIdx = argv.indexOf("--run");
   const runId = runFlagIdx !== -1 ? argv[runFlagIdx + 1] : null;
   const report = runId ? await loadRun(runId) : await loadLatest();
-  if (!report) fail("no analysis available yet — run `pulse run`/`pulse attach`/`pulse ingest` first");
+  if (!report) fail(runId ? `run not found: ${runId}` : "no analysis available yet — run `pulse run`/`pulse attach`/`pulse ingest` first");
   const { prompt } = buildAnalysisPrompt(report);
   console.log(prompt);
   console.log(`\n---\nFull report: ${report.artifacts?.dir}/report.json`);
