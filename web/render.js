@@ -672,18 +672,24 @@ function renderCompare(aReport, bReport) {
 // Small line+dot chart for a metric's value across an ordered list of runs
 // (not a time series — x is run index, each point tooltipped with its run
 // label since a sweep is usually too short for readable x-axis tick labels).
+// points: [{t, v, label, color}] — t is the 1-based run number (matching the
+// numbered run cards rendered above, not a 0-based array index — a mismatch
+// there previously made the x-axis read "0,1,2" while the legend read
+// "1,2,3"); color should be the same PALETTE color used for that run
+// elsewhere on the page, so a dot can be matched back to a run by color,
+// not only by hovering for its tooltip.
 function sweepTrendChart(points, { w = 560, h = 220, ylabel = "", yfmt = (v) => fmt(v, 0) } = {}) {
   if (!points.length) return emptyChart(w, h);
   const ys = points.map((p) => p.v);
   const ymax = Math.max(...ys, 1) * 1.08;
   const ymin = Math.min(0, Math.min(...ys));
-  const f = frame({ w, h, xmin: 0, xmax: Math.max(points.length - 1, 1), ymin, ymax, xlabel: "Run (see legend above)", ylabel, yfmt });
+  const f = frame({ w, h, xmin: 1, xmax: Math.max(points.length, 2), ymin, ymax, xlabel: "Run # (see legend above)", ylabel, yfmt });
   const d = points.map((p, i) => `${i ? "L" : "M"}${f.px(p.t).toFixed(1)},${f.py(p.v).toFixed(1)}`).join(" ");
   let dots = "";
   for (const p of points) {
-    dots += `<circle class="dot" cx="${f.px(p.t).toFixed(1)}" cy="${f.py(p.v).toFixed(1)}" r="4" fill="var(--accent)"><title>${esc(p.label)}: ${esc(yfmt(p.v))}</title></circle>`;
+    dots += `<circle class="dot" cx="${f.px(p.t).toFixed(1)}" cy="${f.py(p.v).toFixed(1)}" r="4.5" fill="${p.color || "var(--accent)"}" stroke="var(--surface)" stroke-width="1.5"><title>${esc(p.label)}: ${esc(yfmt(p.v))}</title></circle>`;
   }
-  return svgWrap(w, h, f.g + `<path d="${d}" fill="none" stroke="var(--accent)" stroke-width="1.6"/>` + dots);
+  return svgWrap(w, h, f.g + `<path d="${d}" fill="none" stroke="var(--ink-muted)" stroke-width="1.6" stroke-opacity="0.55"/>` + dots);
 }
 
 // N-way comparison across an ordered list of runs (e.g. a heap-size or
@@ -715,7 +721,11 @@ function renderSweep(reports) {
     const cells = values.map((v) => {
       const isBest = bestVal != null && v === bestVal;
       const cell = cmpValueCell(v, m.unit, m.d);
-      return isBest ? cell.replace('<td class="num"', '<td class="num best"') : cell;
+      if (!isBest) return cell;
+      // Bold + a checkmark, not color alone, marks the best cell — matches
+      // this same table's existing delta cells, which already use ▲▼→
+      // (not an SVG icon) as their non-color signal.
+      return cell.replace('<td class="num"', '<td class="num best"').replace("</td>", ` <span class="best-mark">✓</span></td>`);
     }).join("");
     return `<tr><td class="k">${esc(m.label)}</td>${cells}</tr>`;
   }).join("");
@@ -728,7 +738,9 @@ function renderSweep(reports) {
 
   const TREND_LABELS = ["Throughput", "p99 pause", "Max pause", "GC events"];
   const charts = CMP_METRICS.filter((m) => TREND_LABELS.includes(m.label)).map((m) => {
-    const points = summaries.map((s, i) => ({ t: i, v: m.get(s), label: labels[i] })).filter((p) => p.v != null && !Number.isNaN(p.v));
+    const points = summaries
+      .map((s, i) => ({ t: i + 1, v: m.get(s), label: labels[i], color: PALETTE[i % PALETTE.length] }))
+      .filter((p) => p.v != null && !Number.isNaN(p.v));
     return `<div class="panel"><h3>${esc(m.label)} across runs</h3>${sweepTrendChart(points, { ylabel: m.unit || "", yfmt: (v) => fmt(v, m.d) })}</div>`;
   }).join("");
   out.push(sectionHeader("Trends"));
