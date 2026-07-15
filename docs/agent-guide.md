@@ -98,7 +98,7 @@ together, not from three separate two-way deltas.
 ```
 pulse ingest --gc-log <path> [--jfr <path>] [--label <str>] [--command <str>]
 pulse run [--duration <dur>] [--jfr-max-mb <n>] [--label <str>] [--cwd <dir>] -- <command...>
-pulse attach [--pid <n> | --docker <container>] [--duration <dur>] [--label <str>] [--jfr-max-mb <n>]
+pulse attach [--pid <n> | --docker <container>] --duration <dur> [--label <str>] [--jfr-max-mb <n>]
 pulse compare <runId> <baselineRunId>
 pulse sweep <runId1> <runId2> [<runId3> ...]
 pulse analyze-prompt [--run <runId>]

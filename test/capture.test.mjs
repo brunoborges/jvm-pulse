@@ -22,7 +22,7 @@ test("resolvePidFilename substitutes %p with the real pid", () => {
 import { injectLaunch } from "../lib/capture.mjs";
 import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
-import { join as pathJoin } from "node:path";
+import { join as pathJoin, isAbsolute } from "node:path";
 
 test("injectLaunch resolves with pid and gc-log/jfr paths once the process exits", async () => {
   const outDir = await mkdtemp(pathJoin(tmpdir(), "pulse-test-"));
@@ -41,6 +41,27 @@ test("injectLaunch resolves with pid and gc-log/jfr paths once the process exits
     assert.ok(result.jfrPath.includes(String(result.pid)));
   } finally {
     await rm(outDir, { recursive: true, force: true });
+  }
+});
+
+test("injectLaunch creates outDir relative to --cwd, not this process's own cwd", async () => {
+  // Regression test for a real bug: mkdir used to run against this process's
+  // cwd unconditionally, ignoring `cwd` — so a --cwd different from pulse's
+  // own invocation directory left the spawned JVM's -Xlog/JFR flags pointing
+  // at a directory that was never created.
+  const targetCwd = await mkdtemp(pathJoin(tmpdir(), "pulse-target-cwd-"));
+  const outDir = "runs/relative-out";
+  try {
+    await injectLaunch({
+      command: process.execPath,
+      args: ["-e", "process.exit(0)"],
+      outDir,
+      cwd: targetCwd,
+    });
+    assert.ok(existsSync(pathJoin(targetCwd, outDir)), `expected ${outDir} to exist under ${targetCwd}, not this process's cwd`);
+  } finally {
+    await rm(pathJoin(targetCwd, "runs"), { recursive: true, force: true });
+    await rm(targetCwd, { recursive: true, force: true });
   }
 });
 
@@ -114,6 +135,11 @@ test("attach (local) issues VM.log, JFR.start, and JFR.stop against a real runni
     }
     const result = await attach({ pid: sleeper.pid, outDir, durationMs: 1000 });
     assert.equal(result.pid, sleeper.pid);
+    // Regression: jcmd resolves relative output=/filename= paths against the
+    // TARGET process's cwd, not pulse's — attach() must hand it absolute
+    // paths so the file lands where pulse actually looks for it.
+    assert.ok(isAbsolute(result.gcLogPath), `expected an absolute gc log path, got ${result.gcLogPath}`);
+    assert.ok(isAbsolute(result.jfrPath), `expected an absolute jfr path, got ${result.jfrPath}`);
     assert.ok(existsSync(result.gcLogPath), `expected gc log at ${result.gcLogPath}`);
     assert.ok(existsSync(result.jfrPath), `expected jfr file at ${result.jfrPath}`);
   } finally {
@@ -193,6 +219,18 @@ test("attach rejects an explicit --pid when --docker is also given", async () =>
     await assert.rejects(
       attach({ pid: "12345", transport: { type: "docker", container: "whatever" }, outDir }),
       /--pid is not supported with --docker/
+    );
+  } finally {
+    await rm(outDir, { recursive: true, force: true });
+  }
+});
+
+test("attach without --duration fails loudly instead of silently capturing an empty window", async () => {
+  const outDir = await mkdtemp(pathJoin(tmpdir(), "pulse-test-"));
+  try {
+    await assert.rejects(
+      attach({ pid: 99999, outDir }),
+      /requires --duration/
     );
   } finally {
     await rm(outDir, { recursive: true, force: true });
