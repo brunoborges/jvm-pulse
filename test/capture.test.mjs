@@ -67,3 +67,62 @@ test("injectLaunch sets JDK_JAVA_OPTIONS on the child process's environment", as
     await rm(outDir, { recursive: true, force: true });
   }
 });
+
+import { attach } from "../lib/capture.mjs";
+import { spawn as spawnProc, execFile } from "node:child_process";
+import { promisify } from "node:util";
+import { writeFile } from "node:fs/promises";
+import { existsSync } from "node:fs";
+
+const execFileAsync = promisify(execFile);
+
+async function toolAvailable(tool, args) {
+  try {
+    await execFileAsync(tool, args);
+    return true;
+  } catch (e) {
+    return e.code !== "ENOENT"; // exists but exited non-zero still counts as available
+  }
+}
+
+test("attach (local) issues VM.log, JFR.start, and JFR.stop against a real running JVM", async (t) => {
+  if (!(await toolAvailable("javac", ["-version"])) ||
+      !(await toolAvailable("java", ["-version"])) ||
+      !(await toolAvailable("jcmd", ["-l"]))) {
+    t.skip("javac/java/jcmd not available in this environment");
+    return;
+  }
+  const outDir = await mkdtemp(pathJoin(tmpdir(), "pulse-test-"));
+  const srcDir = await mkdtemp(pathJoin(tmpdir(), "pulse-sleeper-"));
+  const src = pathJoin(srcDir, "Sleeper.java");
+  await writeFile(
+    src,
+    "public class Sleeper { public static void main(String[] a) throws Exception { Thread.sleep(60000); } }"
+  );
+  await new Promise((resolve, reject) => {
+    const c = spawnProc("javac", [src], { stdio: "inherit" });
+    c.on("exit", (code) => (code === 0 ? resolve() : reject(new Error("javac failed"))));
+  });
+  const sleeper = spawnProc("java", ["-cp", srcDir, "Sleeper"], { stdio: "ignore" });
+  try {
+    // Poll for jcmd to actually see the pid instead of a fixed sleep — JVM
+    // cold-start time varies, especially under CI load.
+    for (let i = 0; i < 20; i++) {
+      const { stdout } = await execFileAsync("jcmd", ["-l"]).catch(() => ({ stdout: "" }));
+      if (stdout.includes(String(sleeper.pid))) break;
+      await new Promise((r) => setTimeout(r, 250));
+    }
+    const result = await attach({ pid: sleeper.pid, outDir, durationMs: 1000 });
+    assert.equal(result.pid, sleeper.pid);
+    assert.ok(existsSync(result.gcLogPath), `expected gc log at ${result.gcLogPath}`);
+    assert.ok(existsSync(result.jfrPath), `expected jfr file at ${result.jfrPath}`);
+  } finally {
+    sleeper.kill();
+    // On Windows the killed JVM doesn't release its open gc-attach.log
+    // handle instantaneously, so an immediate rm can EBUSY — retry with
+    // backoff (fs.rm's built-in support for exactly this) rather than
+    // hand-rolling a wait-for-exit.
+    await rm(outDir, { recursive: true, force: true, maxRetries: 5, retryDelay: 200 });
+    await rm(srcDir, { recursive: true, force: true });
+  }
+});
