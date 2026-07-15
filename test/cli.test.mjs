@@ -78,3 +78,32 @@ test("pulse run always cleans up its scratch runs/ directory, even when analysis
     await rm(cwd, { recursive: true, force: true });
   }
 });
+
+test("pulse run --cwd cleans up its scratch dir under --cwd, not just the invocation dir", async () => {
+  // Regression test: the scratch dir injectLaunch actually wrote into (under
+  // --cwd) is what must be cleaned up — cleanup previously targeted a
+  // relative path resolved against the invocation dir instead, silently
+  // no-op'ing (via rm's force:true) and orphaning the real directory.
+  const invokeCwd = await mkdtemp(join(tmpdir(), "pulse-cli-invoke-"));
+  const targetCwd = await mkdtemp(join(tmpdir(), "pulse-cli-target-"));
+  try {
+    await assert.rejects(
+      execFileAsync(
+        process.execPath,
+        [CLI, "run", "--cwd", targetCwd, "--", process.execPath, "-e", "process.exit(0)"],
+        { cwd: invokeCwd }
+      ),
+      (err) => {
+        assert.match(err.stderr, /GC log not found/);
+        return true;
+      }
+    );
+    const invokeEntries = await readdir(invokeCwd).catch(() => []);
+    const targetEntries = await readdir(targetCwd).catch(() => []);
+    assert.ok(!invokeEntries.includes("runs"), `expected no leftover runs/ dir in invocation cwd ${invokeCwd}, found: ${invokeEntries.join(", ")}`);
+    assert.ok(!targetEntries.includes("runs"), `expected no leftover runs/ dir in --cwd target ${targetCwd}, found: ${targetEntries.join(", ")}`);
+  } finally {
+    await rm(invokeCwd, { recursive: true, force: true });
+    await rm(targetCwd, { recursive: true, force: true });
+  }
+});

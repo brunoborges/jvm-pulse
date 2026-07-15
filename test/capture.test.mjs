@@ -65,6 +65,33 @@ test("injectLaunch creates outDir relative to --cwd, not this process's own cwd"
   }
 });
 
+test("injectLaunch returns absolute gc-log/jfr/outDir paths anchored under --cwd, not this process's cwd", async () => {
+  // Regression test: mkdir/JVM-flags being --cwd-aware (the test above)
+  // isn't enough on its own — the paths THIS FUNCTION RETURNS are read back
+  // by the caller (pulse's own process), which resolves a relative path
+  // against ITS OWN cwd. Under a differing --cwd those used to point at a
+  // location that was never created, even though the JVM itself wrote the
+  // real files correctly under --cwd.
+  const targetCwd = await mkdtemp(pathJoin(tmpdir(), "pulse-target-cwd-"));
+  const outDir = "runs/relative-out-abs";
+  try {
+    const result = await injectLaunch({
+      command: process.execPath,
+      args: ["-e", "process.exit(0)"],
+      outDir,
+      cwd: targetCwd,
+    });
+    assert.ok(isAbsolute(result.gcLogPath), `expected an absolute gc log path, got ${result.gcLogPath}`);
+    assert.ok(isAbsolute(result.jfrPath), `expected an absolute jfr path, got ${result.jfrPath}`);
+    assert.ok(isAbsolute(result.outDir), `expected an absolute outDir, got ${result.outDir}`);
+    assert.ok(result.gcLogPath.startsWith(targetCwd), `expected gcLogPath anchored under ${targetCwd}, got ${result.gcLogPath}`);
+    assert.ok(result.outDir.startsWith(targetCwd), `expected outDir anchored under ${targetCwd}, got ${result.outDir}`);
+  } finally {
+    await rm(pathJoin(targetCwd, "runs"), { recursive: true, force: true });
+    await rm(targetCwd, { recursive: true, force: true });
+  }
+});
+
 test("injectLaunch sets JDK_JAVA_OPTIONS on the child process's environment", async () => {
   // injectLaunch spawns with stdio:"inherit" (so a profiled app's own logs
   // stay visible to whoever runs `pulse run`) — that means the child's

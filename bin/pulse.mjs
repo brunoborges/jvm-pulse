@@ -116,11 +116,13 @@ async function cmdRun(argv) {
   const [command, ...cmdArgs] = argv.slice(dashIdx + 1);
   if (!command) fail('run requires a command after "--"');
 
-  const outDir = newCaptureDir();
-  const { gcLogPath, jfrPath } = await injectLaunch({
+  // injectLaunch reports back the absolute directory it actually used (it
+  // may differ from this process's own cwd when --cwd is given) — clean up
+  // that one, not a recomputed guess that could point somewhere else.
+  const { gcLogPath, jfrPath, outDir } = await injectLaunch({
     command,
     args: cmdArgs,
-    outDir,
+    outDir: newCaptureDir(),
     // Defaults to pulse's own cwd, not the target command's — e.g. a Spring
     // Boot app whose `config/` directory is resolved relative to the process
     // cwd needs `--cwd <project-dir>` unless pulse is already invoked from there.
@@ -142,11 +144,10 @@ async function cmdAttach(argv) {
     },
   });
   const transport = values.docker ? { type: "docker", container: values.docker } : { type: "local" };
-  const outDir = newCaptureDir();
-  const { gcLogPath, jfrPath } = await attach({
+  const { gcLogPath, jfrPath, outDir } = await attach({
     pid: values.pid,
     transport,
-    outDir,
+    outDir: newCaptureDir(),
     ...captureFlags(values),
   });
   await captureAndReport(outDir, { gcLogPath, jfrPath, label: values.label });
