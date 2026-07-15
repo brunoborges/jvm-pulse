@@ -196,3 +196,15 @@ pulse analyze-prompt [--run <runId>]
   relative to its own project directory (e.g. Spring Boot's `config/`
   convention) — `pulse run`'s child process otherwise inherits the CLI's
   own working directory, not the target's.
+- **Manually stopping a `pulse run`-launched process early (instead of
+  letting it exit on its own or waiting out `--duration`) silently loses
+  JFR data**, even with `dumponexit=true`. GC-log data survives regardless
+  (it's written incrementally throughout the run), but JFR's dump-on-exit
+  needs a clean shutdown-hook sequence that a forceful kill (e.g.
+  PowerShell's `Stop-Process -Force`, or any OS-level force-terminate)
+  skips entirely — `pulse run`'s own internal `--duration` timeout avoids
+  this because it explicitly runs `jcmd <pid> JFR.stop name=pulse
+  filename=<path>` *before* killing the process. If you need to stop a
+  capture early yourself, do the same: `jcmd <pid> JFR.stop name=pulse
+  filename=<the exact dump-<pid>.jfr path from the JDK_JAVA_OPTIONS
+  printed at launch>` first, then terminate the process.
