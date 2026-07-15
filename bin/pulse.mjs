@@ -77,6 +77,7 @@ async function cmdRun(argv) {
       duration: { type: "string" },
       "jfr-max-mb": { type: "string" },
       label: { type: "string" },
+      cwd: { type: "string" },
     },
   });
   const [command, ...cmdArgs] = argv.slice(dashIdx + 1);
@@ -87,6 +88,10 @@ async function cmdRun(argv) {
     command,
     args: cmdArgs,
     outDir,
+    // Defaults to pulse's own cwd, not the target command's — e.g. a Spring
+    // Boot app whose `config/` directory is resolved relative to the process
+    // cwd needs `--cwd <project-dir>` unless pulse is already invoked from there.
+    cwd: values.cwd,
     jfrMaxMb: values["jfr-max-mb"] ? Number(values["jfr-max-mb"]) : undefined,
     durationMs: values.duration ? parseDuration(values.duration) : undefined,
   });
