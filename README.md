@@ -92,6 +92,29 @@ Alternatively, install JVM Pulse straight from the UI:
 > won't pick up new releases automatically. To stay current instead, use the
 > [clone method](#clone-it-recommended) above and `git pull` when you want updates.
 
+## Use it as a portable CLI
+
+Beyond the Copilot canvas, jvm-pulse's capture-and-analyze engine is also a
+standalone CLI with zero Copilot dependency — usable from any coding agent,
+or a bare CI step:
+
+```bash
+node bin/pulse.mjs run -- java -jar your-app.jar
+```
+
+prints a self-contained `report.html` you can open in a browser or attach
+to a CI run. See `AGENTS.md` and `docs/agent-guide.md` for the full capture
+recipes (attaching to an already-running JVM, containers, CI) and CLI
+reference.
+
+## Install the Claude Code plugin
+
+Clone this repo into your Claude Code plugins directory (or add it via
+Claude Code's `/plugin` marketplace flow, once published), and **JVM Pulse**
+becomes available as a skill plus `/pulse:run`, `/pulse:attach`,
+`/pulse:report`, `/pulse:compare`, and `/pulse:analyze` commands — thin
+wrappers over the same CLI described above.
+
 ## Usage
 
 Open the **JVM Pulse** canvas and click **Run analysis** (optionally telling
