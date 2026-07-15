@@ -29,8 +29,12 @@ Java workload Copilot can start.
 
 The extension runs on your machine and shells out to:
 
-- **A JDK** with the `jfr` CLI on `PATH` (JDK 11+ for JFR; JDK 9+ for unified GC
-  logging). JDK 8 is supported for GC logs.
+- **A JDK 17+** on `PATH` (or via `JAVA_HOME`). The bundled jbang
+  `GcLogAnalyzer.java` script is pinned to Java 17, and JVM Pulse drives jbang
+  through that JDK when needed.
+- JFR capture still uses standard `-XX:StartFlightRecording` flags (JDK 11+),
+  and analyzed GC logs can come from either unified logging (JDK 9+) or legacy
+  JDK 8 GC log format.
 
 That's the only hard requirement. The extension uses
 **[jbang](https://www.jbang.dev/)** to run the bundled GCToolkit analyzer:
