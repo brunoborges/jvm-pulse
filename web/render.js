@@ -678,12 +678,16 @@ function renderCompare(aReport, bReport) {
 // "1,2,3"); color should be the same PALETTE color used for that run
 // elsewhere on the page, so a dot can be matched back to a run by color,
 // not only by hovering for its tooltip.
-function sweepTrendChart(points, { w = 560, h = 220, ylabel = "", yfmt = (v) => fmt(v, 0) } = {}) {
+function sweepTrendChart(points, { w = 560, h = 220, ylabel = "", yfmt = (v) => fmt(v, 0), runCount } = {}) {
   if (!points.length) return emptyChart(w, h);
   const ys = points.map((p) => p.v);
   const ymax = Math.max(...ys, 1) * 1.08;
   const ymin = Math.min(0, Math.min(...ys));
-  const f = frame({ w, h, xmin: 1, xmax: Math.max(points.length, 2), ymin, ymax, xlabel: "Run # (see legend above)", ylabel, yfmt });
+  // xmax must be the total run count, not points.length — a run missing
+  // this metric (e.g. zero GC events) is filtered out of `points` before
+  // this call, but its `t` (1-based run index) isn't renumbered, so a later
+  // run's dot would plot past a too-small xmax and land off-canvas.
+  const f = frame({ w, h, xmin: 1, xmax: Math.max(runCount ?? points.length, 2), ymin, ymax, xlabel: "Run # (see legend above)", ylabel, yfmt });
   const d = points.map((p, i) => `${i ? "L" : "M"}${f.px(p.t).toFixed(1)},${f.py(p.v).toFixed(1)}`).join(" ");
   let dots = "";
   for (const p of points) {
@@ -741,7 +745,7 @@ function renderSweep(reports) {
     const points = summaries
       .map((s, i) => ({ t: i + 1, v: m.get(s), label: labels[i], color: PALETTE[i % PALETTE.length] }))
       .filter((p) => p.v != null && !Number.isNaN(p.v));
-    return `<div class="panel"><h3>${esc(m.label)} across runs</h3>${sweepTrendChart(points, { ylabel: m.unit || "", yfmt: (v) => fmt(v, m.d) })}</div>`;
+    return `<div class="panel"><h3>${esc(m.label)} across runs</h3>${sweepTrendChart(points, { ylabel: m.unit || "", yfmt: (v) => fmt(v, m.d), runCount: reports.length })}</div>`;
   }).join("");
   out.push(sectionHeader("Trends"));
   out.push(`<div class="panels reveal" style="--i:2">${charts}</div>`);

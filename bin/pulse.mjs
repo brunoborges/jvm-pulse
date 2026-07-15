@@ -5,7 +5,7 @@
 import { parseArgs } from "node:util";
 import { dirname, join, basename } from "node:path";
 import { fileURLToPath } from "node:url";
-import { copyFile, mkdir } from "node:fs/promises";
+import { copyFile, mkdir, rm, rmdir } from "node:fs/promises";
 import { analyzeArtifacts, loadRun, loadLatest, configureWorkspace } from "../lib/pipeline.mjs";
 import { injectLaunch, attach } from "../lib/capture.mjs";
 import { writeStaticReport, writeStaticCompare, writeStaticSweep } from "../lib/report-static.mjs";
@@ -23,6 +23,19 @@ function parseDuration(s) {
   if (!m) fail(`invalid --duration "${s}" — use e.g. 30s, 500ms, 2m`);
   const n = Number(m[1]);
   return m[2] === "ms" ? n : m[2] === "m" ? n * 60_000 : n * 1000;
+}
+
+/** A fresh scratch directory for a capture's raw gc-log/JFR output. */
+function newCaptureDir() {
+  return join("runs", String(Date.now()));
+}
+
+/** The --jfr-max-mb/--duration options shared by `run` and `attach`. */
+function captureFlags(values) {
+  return {
+    jfrMaxMb: values["jfr-max-mb"] ? Number(values["jfr-max-mb"]) : undefined,
+    durationMs: values.duration ? parseDuration(values.duration) : undefined,
+  };
 }
 
 async function cmdIngest(argv) {
@@ -68,6 +81,26 @@ async function cmdIngest(argv) {
   console.log(`Report: ${htmlPath}`);
 }
 
+/** Analyze the just-captured artifacts, write report.html, print it — then
+ *  remove `outDir`, the scratch directory injectLaunch/attach wrote the raw
+ *  gc-log/JFR into. analyzeArtifacts() already copied what it needs into its
+ *  own managed run directory, so outDir is disposable afterward; leaving it
+ *  behind orphaned an untracked runs/<timestamp>/ directory in the user's
+ *  cwd on every single `pulse run`/`pulse attach` invocation. */
+async function captureAndReport(outDir, { gcLogPath, jfrPath, label, command }) {
+  try {
+    const report = await analyzeArtifacts({ gcLogPath, jfrPath, label, command });
+    const htmlPath = await writeStaticReport(report);
+    console.log(`Report: ${htmlPath}`);
+  } finally {
+    await rm(outDir, { recursive: true, force: true });
+    // outDir is always "runs/<timestamp>" — remove the now-empty "runs"
+    // parent too, rather than leaving a permanent empty directory behind.
+    // Fails harmlessly (caught) if it's not empty or already gone.
+    await rmdir(dirname(outDir)).catch(() => {});
+  }
+}
+
 async function cmdRun(argv) {
   const dashIdx = argv.indexOf("--");
   if (dashIdx === -1) fail('run requires "-- <command> [args...]"');
@@ -83,7 +116,7 @@ async function cmdRun(argv) {
   const [command, ...cmdArgs] = argv.slice(dashIdx + 1);
   if (!command) fail('run requires a command after "--"');
 
-  const outDir = join("runs", String(Date.now()));
+  const outDir = newCaptureDir();
   const { gcLogPath, jfrPath } = await injectLaunch({
     command,
     args: cmdArgs,
@@ -92,17 +125,9 @@ async function cmdRun(argv) {
     // Boot app whose `config/` directory is resolved relative to the process
     // cwd needs `--cwd <project-dir>` unless pulse is already invoked from there.
     cwd: values.cwd,
-    jfrMaxMb: values["jfr-max-mb"] ? Number(values["jfr-max-mb"]) : undefined,
-    durationMs: values.duration ? parseDuration(values.duration) : undefined,
+    ...captureFlags(values),
   });
-  const report = await analyzeArtifacts({
-    gcLogPath,
-    jfrPath,
-    label: values.label,
-    command: [command, ...cmdArgs].join(" "),
-  });
-  const htmlPath = await writeStaticReport(report);
-  console.log(`Report: ${htmlPath}`);
+  await captureAndReport(outDir, { gcLogPath, jfrPath, label: values.label, command: [command, ...cmdArgs].join(" ") });
 }
 
 async function cmdAttach(argv) {
@@ -117,24 +142,20 @@ async function cmdAttach(argv) {
     },
   });
   const transport = values.docker ? { type: "docker", container: values.docker } : { type: "local" };
-  const outDir = join("runs", String(Date.now()));
+  const outDir = newCaptureDir();
   const { gcLogPath, jfrPath } = await attach({
     pid: values.pid,
     transport,
     outDir,
-    jfrMaxMb: values["jfr-max-mb"] ? Number(values["jfr-max-mb"]) : undefined,
-    durationMs: values.duration ? parseDuration(values.duration) : undefined,
+    ...captureFlags(values),
   });
-  const report = await analyzeArtifacts({ gcLogPath, jfrPath, label: values.label });
-  const htmlPath = await writeStaticReport(report);
-  console.log(`Report: ${htmlPath}`);
+  await captureAndReport(outDir, { gcLogPath, jfrPath, label: values.label });
 }
 
 async function cmdCompare(argv) {
   const [runId, baselineId] = argv;
   if (!runId || !baselineId) fail("compare requires <runId> <baselineRunId>");
-  const selected = await loadRun(runId);
-  const baseline = await loadRun(baselineId);
+  const [selected, baseline] = await Promise.all([loadRun(runId), loadRun(baselineId)]);
   if (!selected) fail(`run not found: ${runId}`);
   if (!baseline) fail(`run not found: ${baselineId}`);
   const htmlPath = await writeStaticCompare(baseline, selected);
@@ -151,10 +172,9 @@ async function cmdSweep(argv) {
 }
 
 async function cmdAnalyzePrompt(argv) {
-  const runFlagIdx = argv.indexOf("--run");
-  const runId = runFlagIdx !== -1 ? argv[runFlagIdx + 1] : null;
-  const report = runId ? await loadRun(runId) : await loadLatest();
-  if (!report) fail(runId ? `run not found: ${runId}` : "no analysis available yet — run `pulse run`/`pulse attach`/`pulse ingest` first");
+  const { values } = parseArgs({ args: argv, options: { run: { type: "string" } } });
+  const report = values.run ? await loadRun(values.run) : await loadLatest();
+  if (!report) fail(values.run ? `run not found: ${values.run}` : "no analysis available yet — run `pulse run`/`pulse attach`/`pulse ingest` first");
   const { prompt } = buildAnalysisPrompt(report);
   console.log(prompt);
   console.log(`\n---\nFull report: ${report.artifacts?.dir}/report.json`);

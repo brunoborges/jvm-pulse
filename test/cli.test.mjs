@@ -2,7 +2,7 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import { execFile } from "node:child_process";
 import { promisify } from "node:util";
-import { mkdtemp, writeFile, rm } from "node:fs/promises";
+import { mkdtemp, writeFile, rm, readdir } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -53,4 +53,28 @@ test("pulse sweep fails clearly when a run doesn't exist", async () => {
       return true;
     }
   );
+});
+
+test("pulse run always cleans up its scratch runs/ directory, even when analysis fails", async () => {
+  // Regression test: injectLaunch's scratch dir is disposable once
+  // analyzeArtifacts copies what it needs into its own managed run store —
+  // it must not survive the command, on the success path OR the failure
+  // path (a try/finally, not an end-of-happy-path step).
+  const cwd = await mkdtemp(join(tmpdir(), "pulse-cli-cwd-"));
+  try {
+    await assert.rejects(
+      // `node -e "process.exit(0)"` isn't a java launcher, so it produces no
+      // real gc-log — analyzeArtifacts() fails with "GC log not found",
+      // which is the point: cleanup must still happen on this failure path.
+      execFileAsync(process.execPath, [CLI, "run", "--", process.execPath, "-e", "process.exit(0)"], { cwd }),
+      (err) => {
+        assert.match(err.stderr, /GC log not found/);
+        return true;
+      }
+    );
+    const entries = await readdir(cwd).catch(() => []);
+    assert.ok(!entries.includes("runs"), `expected no leftover runs/ dir in ${cwd}, found: ${entries.join(", ")}`);
+  } finally {
+    await rm(cwd, { recursive: true, force: true });
+  }
 });
