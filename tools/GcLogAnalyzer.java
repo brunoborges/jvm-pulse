@@ -1,5 +1,5 @@
 ///usr/bin/env jbang "$0" "$@" ; exit $?
-//JAVA 25
+//JAVA 17
 //DEPS com.microsoft.gctoolkit:gctoolkit-api:3.7.0
 //DEPS com.microsoft.gctoolkit:gctoolkit-parser:3.7.0
 //DEPS com.microsoft.gctoolkit:gctoolkit-vertx:3.7.0
