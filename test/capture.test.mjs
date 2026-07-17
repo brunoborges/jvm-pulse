@@ -252,6 +252,25 @@ test("attach rejects an explicit --pid when --docker is also given", async () =>
   }
 });
 
+import { checkJcmdDumpOutput } from "../lib/capture.mjs";
+
+test("checkJcmdDumpOutput rejects jcmd 'Dump failed' text even though jcmd exits 0", () => {
+  // Real-world repro (containerized JDK 17.0.19): `jcmd <pid> JFR.stop
+  // name=pulse filename=...` printed this to stdout and EXITED 0 — the JVM's
+  // JFR repository was empty, so nothing was dumped and a 0-byte .jfr was
+  // left behind. Exit-code checking alone treats that as success.
+  const out = "4242:\nDump failed. Could not copy recording data. Unexpected error during I/O operation\n";
+  assert.throws(
+    () => checkJcmdDumpOutput(out, ["4242", "JFR.stop", "name=pulse", "filename=/tmp/pulse-dump.jfr"]),
+    /Dump failed[\s\S]*FlightRecorderOptions/
+  );
+});
+
+test("checkJcmdDumpOutput passes normal jcmd output through unchanged", () => {
+  const out = "4242:\nStopped recording \"pulse\". The result was written to:\n/tmp/pulse-dump.jfr\n";
+  assert.equal(checkJcmdDumpOutput(out, ["4242", "JFR.stop", "name=pulse"]), out);
+});
+
 test("attach without --duration fails loudly instead of silently capturing an empty window", async () => {
   const outDir = await mkdtemp(pathJoin(tmpdir(), "pulse-test-"));
   try {

@@ -361,6 +361,7 @@ function renderReport(r) {
   const out = [];
 
   if (gc.error) out.push(`<div class="error-banner"><strong>GC log analysis error.</strong> ${esc(gc.error)}</div>`);
+  if (jfr.error) out.push(`<div class="error-banner"><strong>JFR recording error.</strong> ${esc(jfr.error)}</div>`);
 
   out.push(runMetaLine(r));
 
