@@ -169,6 +169,15 @@ test("attach (local) issues VM.log, JFR.start, and JFR.stop against a real runni
     assert.ok(isAbsolute(result.jfrPath), `expected an absolute jfr path, got ${result.jfrPath}`);
     assert.ok(existsSync(result.gcLogPath), `expected gc log at ${result.gcLogPath}`);
     assert.ok(existsSync(result.jfrPath), `expected jfr file at ${result.jfrPath}`);
+    // Regression: the temporary VM.log configuration must not outlive the
+    // capture — otherwise the attached JVM keeps writing (and holding) the
+    // gc log file for the rest of its life. After attach() returns, the
+    // output it added must be gone from the target's logging config.
+    const { stdout: logConfig } = await execFileAsync("jcmd", [String(sleeper.pid), "VM.log", "list"]);
+    assert.ok(
+      !logConfig.includes("gc-attach.log"),
+      `expected attach() to disable its temporary GC logging on the target JVM, but VM.log list still shows it:\n${logConfig}`
+    );
   } finally {
     sleeper.kill();
     // On Windows the killed JVM doesn't release its open gc-attach.log
