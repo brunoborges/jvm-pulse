@@ -96,6 +96,29 @@ Alternatively, install JVM Pulse straight from the UI:
 > won't pick up new releases automatically. To stay current instead, use the
 > [clone method](#clone-it-recommended) above and `git pull` when you want updates.
 
+## Use it as a portable CLI
+
+Beyond the Copilot canvas, jvm-pulse's capture-and-analyze engine is also a
+standalone CLI with zero Copilot dependency — usable from any coding agent,
+or a bare CI step:
+
+```bash
+node bin/pulse.mjs run -- java -jar your-app.jar
+```
+
+prints a self-contained `report.html` you can open in a browser or attach
+to a CI run. See `AGENTS.md` and `docs/agent-guide.md` for the full capture
+recipes (attaching to an already-running JVM, containers, CI) and CLI
+reference.
+
+## Install the Claude Code plugin
+
+Clone this repo into your Claude Code plugins directory (or add it via
+Claude Code's `/plugin` marketplace flow, once published), and **JVM Pulse**
+becomes available as a skill plus `/pulse:run`, `/pulse:attach`,
+`/pulse:report`, `/pulse:compare`, `/pulse:sweep`, and `/pulse:analyze`
+commands — thin wrappers over the same CLI described above.
+
 ## Usage
 
 Open the **JVM Pulse** canvas and click **Run analysis** (optionally telling
@@ -191,13 +214,23 @@ existing `gc.log` and `.jfr` on disk — no run required.
 
 ```
 extension.mjs        wiring: canvas, HTTP server, SSE, actions, jvm_pulse_ingest tool
-lib/pipeline.mjs     analyzeArtifacts(): GC/JFR analysis of provided artifacts
+lib/pipeline.mjs     analyzeArtifacts(): GC/JFR analysis of provided artifacts (shared by both)
 lib/jbang.mjs        jbang bootstrap: use native jbang or lazily download via the JDK
 lib/jfr.mjs          jfr CLI extraction + reduction to chart-ready data
 lib/prompt.mjs       run prompt + AI-analysis prompt builders
 tools/GcLogAnalyzer.java   jbang GCToolkit analyzer → JSON
-web/                 self-contained visualization (hand-rolled SVG charts)
+web/                 self-contained visualization (hand-rolled SVG charts) - render.js's
+                      pure functions are shared between the canvas and the CLI's static reports
 runs/                per-run artifacts + latest.json (git-ignored)
+
+# Portable CLI (see AGENTS.md / docs/agent-guide.md) - no Copilot dependency
+bin/pulse.mjs         CLI entry point: ingest/run/attach/compare/sweep/analyze-prompt
+lib/capture.mjs       capture primitives: inject-launch (JDK_JAVA_OPTIONS) + attach (jcmd)
+lib/report-static.mjs renders report.json (or N of them) to a self-contained static HTML file
+.claude-plugin/       Claude Code plugin manifest
+skills/pulse/         Claude Code skill (auto-invoked when profiling/GC/JVM tuning comes up)
+commands/             Claude Code slash commands (thin wrappers over bin/pulse.mjs)
+.github/prompts/      GitHub Copilot prompt files (same commands, Copilot's format)
 ```
 
 Each ingest copies the provided `gc.log`/`.jfr` into a fresh `runs/<timestamp>/`

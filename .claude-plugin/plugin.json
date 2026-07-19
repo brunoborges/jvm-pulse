@@ -1,0 +1,10 @@
+{
+  "name": "jvm-pulse",
+  "version": "1.0.0",
+  "description": "Profile any Java project's garbage collection and JFR telemetry: capture (locally, attached to a running JVM, or in a container), analyze with GCToolkit + jfr, and get a shareable static HTML report.",
+  "author": {
+    "name": "Bruno Borges",
+    "url": "https://github.com/brunoborges"
+  },
+  "keywords": ["java", "jvm", "garbage-collection", "jfr", "flight-recorder", "gctoolkit", "performance", "profiling"]
+}
