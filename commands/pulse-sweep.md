@@ -12,7 +12,7 @@ If not specified, ask which runs to include and in what order — list
 `runs/*/report.json` directories (newest first). Order matters only for
 labeling (run 1, run 2, ...), not for which one "wins" a metric.
 
-Run: `node bin/pulse.mjs sweep <runId1> <runId2> [<runId3> ...]`
+Run: `node "${CLAUDE_PLUGIN_ROOT}/bin/pulse.mjs" sweep <runId1> <runId2> [<runId3> ...]`
 
 Then open `<path>/sweep.html` and visually confirm the table and trend
 charts render correctly — don't just relay the printed path. Point out

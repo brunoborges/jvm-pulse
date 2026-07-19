@@ -13,12 +13,12 @@ and `docs/agent-guide.md` — that's the source of truth, not this file.
 
 ## Quick usage
 
-- **Local process, you drive the workload:** `node bin/pulse.mjs run --label "<what this is>" -- <the launch command>` (add `--duration 30s` for a long-running service that doesn't exit on its own)
-- **Already-running JVM:** `node bin/pulse.mjs attach --pid <n> --duration 30s` (or `--docker <container>` — the in-container pid is auto-discovered)
-- **Artifacts already on disk:** `node bin/pulse.mjs ingest --gc-log <path> [--jfr <path>]`
-- **Compare two runs:** `node bin/pulse.mjs compare <selectedRunId> <baselineRunId>`
-- **Compare 3+ runs** (e.g. a heap-size or GC-flag sweep): `node bin/pulse.mjs sweep <runId1> <runId2> [<runId3> ...]`
-- **Tuning recommendations from the last run:** `node bin/pulse.mjs analyze-prompt`, then read its output and answer it grounded in those numbers.
+- **Local process, you drive the workload:** `node "${CLAUDE_PLUGIN_ROOT}/bin/pulse.mjs" run --label "<what this is>" -- <the launch command>` (add `--duration 30s` for a long-running service that doesn't exit on its own)
+- **Already-running JVM:** `node "${CLAUDE_PLUGIN_ROOT}/bin/pulse.mjs" attach --pid <n> --duration 30s` (or `--docker <container>` — the in-container pid is auto-discovered)
+- **Artifacts already on disk:** `node "${CLAUDE_PLUGIN_ROOT}/bin/pulse.mjs" ingest --gc-log <path> [--jfr <path>]`
+- **Compare two runs:** `node "${CLAUDE_PLUGIN_ROOT}/bin/pulse.mjs" compare <selectedRunId> <baselineRunId>`
+- **Compare 3+ runs** (e.g. a heap-size or GC-flag sweep): `node "${CLAUDE_PLUGIN_ROOT}/bin/pulse.mjs" sweep <runId1> <runId2> [<runId3> ...]`
+- **Tuning recommendations from the last run:** `node "${CLAUDE_PLUGIN_ROOT}/bin/pulse.mjs" analyze-prompt`, then read its output and answer it grounded in those numbers.
 
 Pick the mode based on what's being profiled: a runnable jar/command → `run`;
 a service that's already up → `attach`; CI artifacts already produced →

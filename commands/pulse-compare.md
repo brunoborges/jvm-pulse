@@ -8,7 +8,7 @@ recent if the user just says "compare the last two runs". Comparing 3 or
 more runs (e.g. a heap-size or GC-flag sweep)? Use `/pulse:sweep` instead —
 `compare` is specifically a two-run baseline/selected delta view.
 
-Run: `node bin/pulse.mjs compare <selectedRunId> <baselineRunId>`
+Run: `node "${CLAUDE_PLUGIN_ROOT}/bin/pulse.mjs" compare <selectedRunId> <baselineRunId>`
 
 Then open `<path>/compare.html` and visually confirm the delta table and
 verdict render correctly — don't just relay the printed path.

@@ -2,7 +2,7 @@
 description: Analyze the latest jvm-pulse GC/JFR report and recommend JVM tuning + code optimizations
 ---
 
-Run `node bin/pulse.mjs analyze-prompt` (add `--run <runId>` to target a
+Run `node "${CLAUDE_PLUGIN_ROOT}/bin/pulse.mjs" analyze-prompt` (add `--run <runId>` to target a
 specific past run) and read its output — it contains the GC/JFR metrics from
 that run. Using those numbers, provide:
 

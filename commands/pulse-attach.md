@@ -4,8 +4,8 @@ description: Attach jvm-pulse to a JVM that's already running (local pid or a co
 
 Ask (if not already given): a local pid, or a Docker container name?
 
-- Local pid: `node bin/pulse.mjs attach --pid <pid> --duration <dur>`
-- Container: `node bin/pulse.mjs attach --docker <container> --duration <dur>`
+- Local pid: `node "${CLAUDE_PLUGIN_ROOT}/bin/pulse.mjs" attach --pid <pid> --duration <dur>`
+- Container: `node "${CLAUDE_PLUGIN_ROOT}/bin/pulse.mjs" attach --docker <container> --duration <dur>`
   (the in-container java pid is auto-discovered — no need to ask for it)
 
 `--duration` should cover a representative window of activity — ask what the

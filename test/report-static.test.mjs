@@ -1,7 +1,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { renderStaticReportHtml, renderStaticCompareHtml, renderStaticSweepHtml, writeStaticCompare, writeStaticSweep } from "../lib/report-static.mjs";
-import { mkdtemp, readFile, rm } from "node:fs/promises";
+import { mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 
@@ -24,6 +24,29 @@ test("renderStaticReportHtml embeds the report JSON and the render functions, wi
   assert.ok(!html.includes("EventSource"), "must not include canvas app-wiring (EventSource)");
   assert.ok(!html.includes('fetch("runs")'), "must not include canvas app-wiring (fetch)");
   assert.ok(!html.includes('el("run-btn")'), "must not include canvas-only DOM element references");
+});
+
+test("renderStaticReportHtml embeds the jfr views text so #views-pre isn't left permanently Loading", async () => {
+  // In the live canvas app.js fetches the views text and fills #views-pre;
+  // a static report has no server, so the text must be embedded at generation
+  // time or the section spins on "Loading…" forever.
+  const root = await mkdtemp(join(tmpdir(), "pulse-views-"));
+  const viewsPath = join(root, "jfr-views.txt");
+  const viewsText = "== GC Configuration ==\nvalue with </script> breakout attempt";
+  try {
+    await writeFile(viewsPath, viewsText);
+    const html = await renderStaticReportHtml({ ...SAMPLE_REPORT, artifacts: { views: viewsPath } });
+    assert.ok(html.includes('getElementById("views-pre")'), "should wire up filling of #views-pre");
+    assert.ok(html.includes(JSON.stringify(viewsText).replace(/</g, "\\u003c")), "views text should be embedded, escaped");
+    assert.ok(!html.includes("</script>value"), "raw </script> in views text must not break out of the embed");
+  } finally {
+    await rm(root, { recursive: true, force: true });
+  }
+});
+
+test("renderStaticReportHtml marks views unavailable rather than spinning when the file is missing", async () => {
+  const html = await renderStaticReportHtml({ ...SAMPLE_REPORT, artifacts: { views: "/no/such/jfr-views.txt" } });
+  assert.ok(html.includes("(unavailable)"), "a truthy-but-unreadable views path should render as unavailable");
 });
 
 test("renderStaticCompareHtml embeds both reports and calls renderCompare", async () => {

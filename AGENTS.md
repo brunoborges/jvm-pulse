@@ -14,8 +14,8 @@ see `docs/agent-guide.md`.
 
 ```
 node bin/pulse.mjs run -- <your launch command>       # launch + capture
-node bin/pulse.mjs attach --pid <n>                    # attach to a running JVM
-node bin/pulse.mjs attach --docker <container>         # attach inside a container
+node bin/pulse.mjs attach --pid <n> --duration 30s    # attach to a running JVM
+node bin/pulse.mjs attach --docker <container> --duration 30s  # attach inside a container
 node bin/pulse.mjs ingest --gc-log <path> [--jfr <path>]  # artifacts already on disk
 node bin/pulse.mjs compare <runId> <baselineRunId>      # two-run delta view
 node bin/pulse.mjs sweep <runId1> <runId2> [...]        # 3+ run comparison (e.g. a heap-size sweep)

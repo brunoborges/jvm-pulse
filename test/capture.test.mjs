@@ -116,6 +116,31 @@ test("injectLaunch sets JDK_JAVA_OPTIONS on the child process's environment", as
   }
 });
 
+test("injectLaunch preserves a caller-provided JDK_JAVA_OPTIONS instead of clobbering it", async () => {
+  // Workloads commonly rely on JDK_JAVA_OPTIONS for required -D/-XX settings;
+  // replacing it would change or break the process being measured. The capture
+  // flags must be appended to, not replace, the caller's value.
+  const outDir = await mkdtemp(pathJoin(tmpdir(), "pulse-test-"));
+  const marker = pathJoin(outDir, "env-seen.txt");
+  const prior = process.env.JDK_JAVA_OPTIONS;
+  process.env.JDK_JAVA_OPTIONS = "-Dcaller.required=1";
+  try {
+    await injectLaunch({
+      command: process.execPath,
+      args: ["-e", `require("fs").writeFileSync(${JSON.stringify(marker)}, process.env.JDK_JAVA_OPTIONS || "")`],
+      outDir,
+    });
+    const { readFileSync } = await import("node:fs");
+    const seen = readFileSync(marker, "utf8");
+    assert.match(seen, /-Dcaller\.required=1/, "caller's JDK_JAVA_OPTIONS must be preserved");
+    assert.match(seen, /-XX:StartFlightRecording/, "capture flags must still be present");
+  } finally {
+    if (prior === undefined) delete process.env.JDK_JAVA_OPTIONS;
+    else process.env.JDK_JAVA_OPTIONS = prior;
+    await rm(outDir, { recursive: true, force: true });
+  }
+});
+
 import { attach } from "../lib/capture.mjs";
 import { spawn as spawnProc, execFile } from "node:child_process";
 import { promisify } from "node:util";

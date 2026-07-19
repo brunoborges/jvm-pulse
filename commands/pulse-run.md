@@ -12,7 +12,7 @@ different pid, so the report would describe the wrong process.
 
 Then run:
 
-    node bin/pulse.mjs run --label "<short description>" -- <the launch command>
+    node "${CLAUDE_PLUGIN_ROOT}/bin/pulse.mjs" run --label "<short description>" -- <the launch command>
 
 For a long-running service that doesn't exit on its own, add
 `--duration 30s` (or however long is representative) so capture stops
