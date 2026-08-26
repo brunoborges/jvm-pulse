@@ -39,7 +39,7 @@
         </button>
         <button id="run-btn" class="btn primary">
           <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M8 5v14l11-7z"/></svg>
-          Run analysis
+          New analysis
         </button>
       </div>
     </header>
@@ -50,17 +50,60 @@
     </div>
 
     <div id="config" class="config hidden">
-      <div class="config-grid">
-        <label class="wide">What should Copilot run? <span class="opt">(optional)</span>
-          <textarea id="cfg-hint" rows="2" placeholder="e.g. run the JMH benchmark in the benchmarks module, or `mvn verify`. Leave blank to let Copilot decide."></textarea>
+      <div class="config-heading">
+        <div>
+          <h2>Start a profiling session</h2>
+          <p>Analyze telemetry you already have, or capture a fresh run from this project.</p>
+        </div>
+        <button id="config-cancel" class="icon-btn" aria-label="Close profiling setup" title="Close">×</button>
+      </div>
+      <div class="mode-tabs" role="tablist" aria-label="Profiling source">
+        <button id="mode-files" class="mode-tab active" role="tab" aria-selected="true" aria-controls="files-panel">Analyze files</button>
+        <button id="mode-project" class="mode-tab" role="tab" aria-selected="false" aria-controls="project-panel">Profile this project</button>
+      </div>
+
+      <section id="files-panel" class="config-panel" role="tabpanel" aria-labelledby="mode-files">
+        <div class="file-grid">
+          <label class="file-picker required">
+            <input id="cfg-gc-file" type="file" accept=".log,.txt" />
+            <span class="file-kind">GC log <strong>Required</strong></span>
+            <span id="gc-file-summary" class="file-summary">Choose a unified or JDK 8 GC log</span>
+            <span class="file-action">Choose file</span>
+          </label>
+          <label class="file-picker">
+            <input id="cfg-jfr-file" type="file" accept=".jfr" />
+            <span class="file-kind">Flight recording <em>Optional</em></span>
+            <span id="jfr-file-summary" class="file-summary">Add a .jfr file for allocation and hotspot data</span>
+            <span class="file-action">Choose file</span>
+          </label>
+          <label class="file-picker source-picker">
+            <input id="cfg-source-folder" type="file" webkitdirectory directory multiple />
+            <span class="file-kind">Source code <em>Optional</em></span>
+            <span id="source-folder-summary" class="file-summary">Add the project folder for source-grounded AI advice</span>
+            <span class="file-action">Choose folder</span>
+          </label>
+        </div>
+        <label class="session-label">Session label <span class="opt">(optional)</span>
+          <input id="cfg-label" type="text" maxlength="120" placeholder="e.g. Checkout load test · G1 · 2 GB heap" />
         </label>
-        <label>JFR max size (MB) <input id="cfg-jfr" type="number" value="100" min="1" /></label>
-      </div>
-      <div class="config-actions">
-        <button id="config-start" class="btn primary">Ask Copilot to run</button>
-        <button id="config-cancel" class="btn">Cancel</button>
-      </div>
-      <p class="hint">Copilot detects the build tool and JDK, runs the workload with GC logging + JFR, then ingests the results here. It may ask what to run if the project is ambiguous.</p>
+        <div class="config-actions">
+          <button id="config-files-start" class="btn primary">Analyze selected files</button>
+          <span class="limit-note">Source upload: supported code and build files, up to 2,000 files / 64 MB.</span>
+        </div>
+      </section>
+
+      <section id="project-panel" class="config-panel hidden" role="tabpanel" aria-labelledby="mode-project">
+        <div class="config-grid">
+          <label class="wide">What should Copilot run? <span class="opt">(optional)</span>
+            <textarea id="cfg-hint" rows="2" placeholder="e.g. run the JMH benchmark in the benchmarks module, or `mvn verify`. Leave blank to let Copilot decide."></textarea>
+          </label>
+          <label>JFR max size (MB) <input id="cfg-jfr" type="number" value="100" min="1" /></label>
+        </div>
+        <div class="config-actions">
+          <button id="config-start" class="btn primary">Ask Copilot to run</button>
+        </div>
+        <p class="hint">Copilot detects the build tool and JDK, runs the workload with GC logging + JFR, then ingests the results here.</p>
+      </section>
     </div>
 
     <main id="content">
@@ -68,9 +111,13 @@
         <div class="empty-glyph" aria-hidden="true">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 3v18h18"/><path d="M7 14l3-4 3 2 4-6"/></svg>
         </div>
-        <h2>No profile yet</h2>
-        <p>Click <strong>Run analysis</strong> and Copilot will build and run this project's workload with GC logging and JFR enabled, then visualize throughput, pauses, heap, allocations, and hot methods here.</p>
-        <p class="muted">Already have artifacts? Ask Copilot to call the <code>jvm_pulse_ingest</code> tool with your <code>gc.log</code> and <code>.jfr</code> paths.</p>
+        <h2>Bring JVM telemetry into focus</h2>
+        <p>Select an existing GC log and optional JFR recording. Add the source folder when you want Copilot to connect runtime hotspots to the code that produced them.</p>
+        <div class="empty-actions">
+          <button id="empty-files-btn" class="btn primary">Choose profiling files</button>
+          <button id="empty-project-btn" class="btn">Profile this project</button>
+        </div>
+        <p class="muted">JVM Pulse keeps each analysis together so runs can be revisited and compared.</p>
       </div>
       <div id="report" class="report hidden"></div>
     </main>

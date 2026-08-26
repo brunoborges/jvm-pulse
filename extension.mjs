@@ -7,15 +7,22 @@
 // visualizes everything in an interactive canvas.
 
 import { createServer } from "node:http";
-import { readFile } from "node:fs/promises";
+import { createWriteStream } from "node:fs";
+import { readFile, mkdir, mkdtemp, rm } from "node:fs/promises";
 import { join, dirname, extname, normalize, isAbsolute } from "node:path";
 import { fileURLToPath } from "node:url";
+import { tmpdir } from "node:os";
+import { Readable } from "node:stream";
+import { pipeline } from "node:stream/promises";
 import { joinSession, createCanvas, CanvasError } from "@github/copilot-sdk/extension";
 import { analyzeArtifacts, loadLatest, loadRun, listRuns, readArtifact, configureWorkspace, TOOL_PATHS } from "./lib/pipeline.mjs";
 import { buildAnalysisPrompt, buildRunPrompt } from "./lib/prompt.mjs";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const WEB_DIR = join(__dirname, "web");
+const MAX_UPLOAD_BYTES = 512 * 1024 * 1024;
+const MAX_SOURCE_BYTES = 64 * 1024 * 1024;
+const MAX_SOURCE_FILES = 2000;
 
 const MIME = {
     ".html": "text/html; charset=utf-8",
@@ -120,6 +127,85 @@ function readBody(req) {
     });
 }
 
+function json(res, status, value) {
+    res.writeHead(status, { "Content-Type": MIME[".json"] });
+    res.end(JSON.stringify(value));
+}
+
+function safeSourcePath(value) {
+    const parts = String(value || "").split(/[\\/]+/).filter((part) => part && part !== ".");
+    if (!parts.length || parts.some((part) => part === "..")) {
+        throw new Error(`Invalid source file path: ${value || "(empty)"}`);
+    }
+    return join(...parts);
+}
+
+async function saveUpload(file, path) {
+    await mkdir(dirname(path), { recursive: true });
+    await pipeline(Readable.fromWeb(file.stream()), createWriteStream(path));
+}
+
+async function ingestUpload(req) {
+    const contentLength = Number(req.headers["content-length"] || 0);
+    if (contentLength > MAX_UPLOAD_BYTES) {
+        throw new Error("The selected artifacts exceed the 512 MB upload limit.");
+    }
+
+    const request = new Request("http://localhost/ingest", {
+        method: "POST",
+        headers: req.headers,
+        body: Readable.toWeb(req),
+        duplex: "half",
+    });
+    const form = await request.formData();
+    const gcFile = form.get("gcLog");
+    const jfrFile = form.get("jfr");
+    if (!gcFile || typeof gcFile.stream !== "function" || gcFile.size === 0) {
+        throw new Error("Select a non-empty GC log file.");
+    }
+
+    const scratch = await mkdtemp(join(tmpdir(), "jvm-pulse-upload-"));
+    try {
+        const gcLogPath = join(scratch, "gc.log");
+        await saveUpload(gcFile, gcLogPath);
+
+        let jfrPath = null;
+        if (jfrFile && typeof jfrFile.stream === "function" && jfrFile.size > 0) {
+            jfrPath = join(scratch, "dump.jfr");
+            await saveUpload(jfrFile, jfrPath);
+        }
+
+        const sourceEntries = [...form.entries()].filter(([name, file]) =>
+            name.startsWith("source:") && file && typeof file.stream === "function"
+        );
+        if (sourceEntries.length > MAX_SOURCE_FILES) {
+            throw new Error(`The source folder contains more than ${MAX_SOURCE_FILES} supported files.`);
+        }
+        const sourceBytes = sourceEntries.reduce((sum, [, file]) => sum + file.size, 0);
+        if (sourceBytes > MAX_SOURCE_BYTES) {
+            throw new Error("The supported files in the source folder exceed the 64 MB limit.");
+        }
+
+        let sourcePath = null;
+        if (sourceEntries.length) {
+            sourcePath = join(scratch, "source");
+            for (const [name, file] of sourceEntries) {
+                const relativePath = safeSourcePath(decodeURIComponent(name.slice("source:".length)));
+                await saveUpload(file, join(sourcePath, relativePath));
+            }
+        }
+
+        return await ingestArtifacts({
+            gcLogPath,
+            jfrPath,
+            sourcePath,
+            label: String(form.get("label") || "").trim() || undefined,
+        });
+    } finally {
+        await rm(scratch, { recursive: true, force: true });
+    }
+}
+
 async function handleRequest(req, res) {
     const url = new URL(req.url, "http://localhost");
     const path = url.pathname;
@@ -138,6 +224,25 @@ async function handleRequest(req, res) {
         else report = runState.lastReport ?? (await loadLatest());
         res.writeHead(200, { "Content-Type": MIME[".json"] });
         res.end(JSON.stringify(report ?? { empty: true }));
+        return;
+    }
+
+    if (path === "/context") {
+        json(res, 200, { repositoryAttached: Boolean(sessionRef?.workspacePath) });
+        return;
+    }
+
+    if (path === "/ingest" && req.method === "POST") {
+        if (runState.running) {
+            json(res, 409, { error: "An analysis is already running." });
+            return;
+        }
+        try {
+            const report = await ingestUpload(req);
+            json(res, 200, { runId: report.runId });
+        } catch (err) {
+            json(res, 400, { error: String(err?.message || err) });
+        }
         return;
     }
 
@@ -298,6 +403,7 @@ sessionRef = await joinSession({
                 properties: {
                     gcLogPath: { type: "string", description: "Absolute path to the GC log file (unified -Xlog:gc* output or JDK 8 -Xloggc output)." },
                     jfrPath: { type: "string", description: "Absolute path to the .jfr flight recording, if one was produced. Optional but strongly recommended." },
+                    sourcePath: { type: "string", description: "Absolute path to the workload's source-code folder. Optional; enables source-grounded AI recommendations." },
                     label: { type: "string", description: "Short human-readable description of the workload and notable JVM flags (e.g. 'JMH io-bench, -Xmx512m G1')." },
                     command: { type: "string", description: "The exact command used to launch the workload, including all JVM flags (e.g. 'java -Xmx512m -XX:+UseG1GC -Xlog:gc*:file=gc.log ... -jar app.jar'). Recorded verbatim so the user can see and compare the flags used across runs." },
                 },
@@ -309,8 +415,9 @@ sessionRef = await joinSession({
                 const resolveArg = (p) => (p && !isAbsolute(p) && sessionRef?.workspacePath ? join(sessionRef.workspacePath, p) : p);
                 const gcLogPath = resolveArg(args?.gcLogPath);
                 const jfrPath = resolveArg(args?.jfrPath);
+                const sourcePath = resolveArg(args?.sourcePath);
                 try {
-                    const report = await ingestArtifacts({ gcLogPath, jfrPath, label: args?.label, command: args?.command });
+                    const report = await ingestArtifacts({ gcLogPath, jfrPath, sourcePath, label: args?.label, command: args?.command });
                     const s = report.gc?.summary ?? {};
                     const jfr = report.jfr ?? {};
                     const lines = [

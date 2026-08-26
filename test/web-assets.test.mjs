@@ -17,6 +17,16 @@ test("app.js runs in strict mode", () => {
   assert.match(src.trimStart(), /^"use strict";/, 'app.js must open with "use strict" — it holds all the state/SSE wiring that used to be covered by the single pre-split app.js');
 });
 
+test("canvas offers direct GC log, JFR, and source-folder ingestion", () => {
+  const html = readFileSync(join(WEB_DIR, "index.html"), "utf8");
+  const app = readFileSync(join(WEB_DIR, "app.js"), "utf8");
+  assert.match(html, /id="cfg-gc-file"[^>]*type="file"/);
+  assert.match(html, /id="cfg-jfr-file"[^>]*type="file"/);
+  assert.match(html, /id="cfg-source-folder"[^>]*webkitdirectory/);
+  assert.match(app, /new FormData\(\)/);
+  assert.match(app, /xhr\.open\("POST", "ingest"\)/);
+});
+
 test("sweepTrendChart plots every run within the chart's viewBox, even when a middle run is missing the metric", () => {
   const src = readFileSync(join(WEB_DIR, "render.js"), "utf8");
   const sandbox = {};
