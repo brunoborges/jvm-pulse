@@ -5,18 +5,19 @@ right inside GitHub Copilot.**
 
 JVM Pulse is a **canvas extension** for the
 [GitHub Copilot app](https://docs.github.com/en/copilot/how-tos/github-copilot-app/working-with-canvas-extensions).
-It runs a representative workload for your Java project
-with GC logging + JFR enabled, analyzes the results with Microsoft
+It can analyze GC logs and JFR recordings selected directly from disk, or run a
+representative workload for the Java project in the current session. It analyzes
+the results with Microsoft
 [GCToolkit](https://github.com/microsoft/gctoolkit) and the JDK `jfr` CLI, and
 visualizes everything — throughput, pauses, heap, allocations, hot methods — in
 an interactive side panel. One click then asks Copilot to read the numbers and
 recommend JVM tuning and code optimizations.
 
-It is **Copilot-driven**: the extension doesn't hard-code how to build or run
-your project. The **Run analysis** button asks Copilot to detect your build tool
-and JDK, launch a workload with the right flags, and hand the artifacts back for
-analysis. It works with Maven, Gradle, JMH, runnable jars, jbang scripts — any
-Java workload Copilot can start.
+For new captures it is **Copilot-driven**: the extension doesn't hard-code how
+to build or run your project. **New analysis → Profile this project** asks
+Copilot to detect your build tool and JDK, launch a workload with the right
+flags, and hand the artifacts back for analysis. It works with Maven, Gradle,
+JMH, runnable jars, jbang scripts — any Java workload Copilot can start.
 
 <details>
 <summary>Screenshot: JVM Pulse dashboard</summary>
@@ -121,8 +122,14 @@ commands — thin wrappers over the same CLI described above.
 
 ## Usage
 
-Open the **JVM Pulse** canvas and click **Run analysis** (optionally telling
-Copilot what workload to run), or drive it from chat.
+Open the **JVM Pulse** canvas and click **New analysis**:
+
+- **Analyze files** selects a GC log, an optional JFR recording, and an optional
+  source-code folder directly from disk. This works in Copilot sessions that are
+  not attached to a repository. When source is provided, **Analyze with AI** can
+  connect runtime symbols to concrete classes and methods.
+- **Profile this project** asks Copilot to capture a fresh run from the
+  repository attached to the current session.
 
 ```
 [Run analysis] ──▶ Copilot builds + runs your workload with GC log + JFR
@@ -138,8 +145,8 @@ Copilot what workload to run), or drive it from chat.
                                          and recommends tuning
 ```
 
-Already have artifacts? Ask Copilot to call **`jvm_pulse_ingest`** with an
-existing `gc.log` and `.jfr` on disk — no run required.
+You can also ask Copilot to call **`jvm_pulse_ingest`** with an existing
+`gc.log`, `.jfr`, and optional source folder on disk.
 
 > 📖 **See it end-to-end:** the [profiling walkthrough](docs/walkthrough.md)
 > follows a real run — from **Run analysis** to a root-cause diagnosis, tuning
@@ -147,7 +154,7 @@ existing `gc.log` and `.jfr` on disk — no run required.
 
 ### Actions & tools
 
-- **`jvm_pulse_ingest`** *(agent tool)* — `{ gcLogPath, jfrPath?, label?, command? }`.
+- **`jvm_pulse_ingest`** *(agent tool)* — `{ gcLogPath, jfrPath?, sourcePath?, label?, command? }`.
   Analyzes a GC log + optional JFR recording and updates the canvas. Copilot
   calls this after running a workload, or you can point it at existing artifacts.
   Pass `command` with the exact launch command (including JVM flags) so the run's

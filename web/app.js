@@ -8,6 +8,13 @@ let waiting = false;
 let runsList = [];
 let currentRunId = null;
 let compareMode = false;
+let repositoryAttached = false;
+
+const SOURCE_EXTENSIONS = new Set([
+  "java", "kt", "kts", "scala", "groovy", "clj", "xml", "gradle", "properties",
+  "yaml", "yml", "toml", "json", "md", "txt", "sh", "bat", "cmd", "jsp",
+]);
+const SOURCE_FILENAMES = new Set(["pom.xml", "makefile", "dockerfile", "build.gradle", "build.gradle.kts", "settings.gradle", "settings.gradle.kts"]);
 
 async function fetchReport(runId) {
   const url = runId ? `state?runId=${encodeURIComponent(runId)}` : "state";
@@ -139,8 +146,112 @@ function setProgress(pct, msg) {
   if (msg) el("progress-msg").textContent = msg;
 }
 
-function openConfig() { el("config").classList.remove("hidden"); }
+function selectMode(mode) {
+  const project = mode === "project" && repositoryAttached;
+  el("mode-files").classList.toggle("active", !project);
+  el("mode-files").setAttribute("aria-selected", String(!project));
+  el("mode-project").classList.toggle("active", project);
+  el("mode-project").setAttribute("aria-selected", String(project));
+  el("files-panel").classList.toggle("hidden", project);
+  el("project-panel").classList.toggle("hidden", !project);
+}
+
+function openConfig(mode = "files") {
+  el("config").classList.remove("hidden");
+  selectMode(mode);
+}
 function closeConfig() { el("config").classList.add("hidden"); }
+
+function formatBytes(bytes) {
+  if (bytes < 1024) return `${bytes} B`;
+  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
+  return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+}
+
+function selectedSourceFiles() {
+  return [...el("cfg-source-folder").files].filter((file) => {
+    const name = file.name.toLowerCase();
+    const ext = name.includes(".") ? name.split(".").pop() : "";
+    return SOURCE_EXTENSIONS.has(ext) || SOURCE_FILENAMES.has(name);
+  });
+}
+
+function updateFileSummaries() {
+  const gc = el("cfg-gc-file").files[0];
+  const jfr = el("cfg-jfr-file").files[0];
+  const source = selectedSourceFiles();
+  el("gc-file-summary").textContent = gc ? `${gc.name} · ${formatBytes(gc.size)}` : "Choose a unified or JDK 8 GC log";
+  el("jfr-file-summary").textContent = jfr ? `${jfr.name} · ${formatBytes(jfr.size)}` : "Add a .jfr file for allocation and hotspot data";
+  el("source-folder-summary").textContent = source.length
+    ? `${source[0].webkitRelativePath.split("/")[0]} · ${source.length} supported files · ${formatBytes(source.reduce((sum, file) => sum + file.size, 0))}`
+    : "Add the project folder for source-grounded AI advice";
+  el("cfg-gc-file").closest(".file-picker").classList.toggle("has-file", Boolean(gc));
+  el("cfg-jfr-file").closest(".file-picker").classList.toggle("has-file", Boolean(jfr));
+  el("cfg-source-folder").closest(".file-picker").classList.toggle("has-file", source.length > 0);
+}
+
+function uploadArtifacts(form) {
+  return new Promise((resolve, reject) => {
+    const xhr = new XMLHttpRequest();
+    xhr.open("POST", "ingest");
+    xhr.upload.addEventListener("progress", (event) => {
+      if (!event.lengthComputable) return;
+      const pct = Math.round((event.loaded / event.total) * 22);
+      setProgress(pct, `Uploading selected artifacts… ${Math.round((event.loaded / event.total) * 100)}%`);
+    });
+    xhr.addEventListener("load", () => {
+      let data = {};
+      try { data = JSON.parse(xhr.responseText || "{}"); } catch {}
+      if (xhr.status >= 200 && xhr.status < 300) resolve(data);
+      else reject(new Error(data.error || `Upload failed (HTTP ${xhr.status})`));
+    });
+    xhr.addEventListener("error", () => reject(new Error("The local upload connection failed.")));
+    xhr.send(form);
+  });
+}
+
+async function startFileAnalysis() {
+  const gc = el("cfg-gc-file").files[0];
+  if (!gc) {
+    el("gc-file-summary").textContent = "Select a GC log before starting.";
+    el("cfg-gc-file").closest(".file-picker").classList.add("invalid");
+    el("cfg-gc-file").focus();
+    return;
+  }
+
+  const source = selectedSourceFiles();
+  const sourceBytes = source.reduce((sum, file) => sum + file.size, 0);
+  if (source.length > 2000 || sourceBytes > 64 * 1024 * 1024) {
+    el("run-status").textContent = "Source folder is over the 2,000 file / 64 MB limit.";
+    return;
+  }
+
+  const form = new FormData();
+  form.append("gcLog", gc, gc.name);
+  const jfr = el("cfg-jfr-file").files[0];
+  if (jfr) form.append("jfr", jfr, jfr.name);
+  const label = el("cfg-label").value.trim();
+  if (label) form.append("label", label);
+  for (const file of source) {
+    form.append(`source:${encodeURIComponent(file.webkitRelativePath || file.name)}`, file, file.name);
+  }
+
+  closeConfig();
+  el("config-files-start").disabled = true;
+  setWaiting("Uploading selected artifacts…");
+  try {
+    const result = await uploadArtifacts(form);
+    finishWaiting();
+    await refreshRuns();
+    await selectRun(result.runId);
+  } catch (err) {
+    finishWaiting();
+    el("run-status").textContent = err.message || String(err);
+    setProgress(100, `Analysis failed: ${err.message || err}`);
+  } finally {
+    el("config-files-start").disabled = false;
+  }
+}
 
 // A single persistent event stream: ingestion is triggered by Copilot (via the
 // jvm_pulse_ingest tool), so progress/done events can arrive at any time, not just
@@ -235,9 +346,20 @@ async function analyzeWithAI() {
   }
 }
 
-el("run-btn").addEventListener("click", openConfig);
+el("run-btn").addEventListener("click", () => openConfig("files"));
 el("config-cancel").addEventListener("click", closeConfig);
 el("config-start").addEventListener("click", startRun);
+el("config-files-start").addEventListener("click", startFileAnalysis);
+el("mode-files").addEventListener("click", () => selectMode("files"));
+el("mode-project").addEventListener("click", () => selectMode("project"));
+el("empty-files-btn").addEventListener("click", () => openConfig("files"));
+el("empty-project-btn").addEventListener("click", () => openConfig("project"));
+el("cfg-gc-file").addEventListener("change", () => {
+  el("cfg-gc-file").closest(".file-picker").classList.remove("invalid");
+  updateFileSummaries();
+});
+el("cfg-jfr-file").addEventListener("change", updateFileSummaries);
+el("cfg-source-folder").addEventListener("change", updateFileSummaries);
 el("analyze-btn").addEventListener("click", analyzeWithAI);
 el("run-select").addEventListener("change", (e) => selectRun(e.target.value));
 el("baseline-select").addEventListener("change", () => { if (compareMode) renderComparison(); });
@@ -255,6 +377,15 @@ document.addEventListener("click", (e) => {
 
 async function init() {
   connectEvents();
+  try {
+    const context = await fetch("context").then((res) => res.json());
+    repositoryAttached = Boolean(context.repositoryAttached);
+  } catch {
+    repositoryAttached = false;
+  }
+  el("mode-project").disabled = !repositoryAttached;
+  el("mode-project").title = repositoryAttached ? "" : "Open JVM Pulse from a repository session to profile a project.";
+  el("empty-project-btn").classList.toggle("hidden", !repositoryAttached);
   await refreshRuns();
   if (runsList.length) selectRun(runsList[0].runId);
   else showEmpty();
