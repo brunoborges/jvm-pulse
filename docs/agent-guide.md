@@ -2,9 +2,22 @@
 
 ## Install
 
-No install step beyond having this repo checked out and a JDK with `jfr`
-and `jcmd` on `PATH` (JDK 11+; `jcmd` ships with a JDK, not a JRE). The
-first `pulse` invocation lazily bootstraps `jbang` if it isn't already
+No install step beyond having this repo checked out and an analysis JDK on
+`PATH` (or via `JAVA_HOME`):
+
+- **JDK 17+** for GC-log analysis and basic JFR event extraction.
+- **JDK 21+** for full JFR analysis: top allocations, hot methods, exception
+  sites, and the raw views report depend on `jfr view`. Older analysis tools
+  preserve other JFR data and emit an explicit warning in the CLI, canvas,
+  HTML report, and AI analysis context.
+
+The workload JVM is separate: the CLI's automatic `run`/`attach` captures
+require JDK 11+, and attaching needs `jcmd` alongside the target JVM (`jcmd`
+ships with a JDK, not a JRE). Legacy JDK 8 GC logs can be captured separately
+and analyzed with `ingest`. To recover missing JFR views, re-ingest the same
+recording with `JAVA_HOME` or `PATH` pointing at JDK 21+; no new capture is needed.
+
+The first `pulse` invocation lazily bootstraps `jbang` if it isn't already
 installed — see the main `README.md`.
 
 ## Capture recipes

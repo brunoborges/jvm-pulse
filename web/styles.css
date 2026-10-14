@@ -460,13 +460,19 @@ details.views pre {
   border: 1px solid var(--border-muted);
 }
 
-.error-banner {
+.error-banner,
+.warning-banner {
   border: 1px solid color-mix(in srgb, var(--status-bad) 35%, var(--border));
   background: color-mix(in srgb, var(--status-bad) 9%, var(--surface));
   color: var(--ink);
   border-radius: var(--radius);
   padding: 0.75rem 1rem; margin-bottom: 1rem;
   font-size: 13px;
+  overflow-wrap: anywhere;
+}
+.warning-banner {
+  border-color: color-mix(in srgb, var(--status-warn) 35%, var(--border));
+  background: color-mix(in srgb, var(--status-warn) 9%, var(--surface));
 }
 
 /* --- Motion (opt-in; static + visible for reduced-motion users) ---------- */
