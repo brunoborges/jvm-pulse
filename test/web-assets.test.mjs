@@ -27,6 +27,26 @@ test("canvas offers direct GC log, JFR, and source-folder ingestion", () => {
   assert.match(app, /xhr\.open\("POST", "ingest"\)/);
 });
 
+test("JFR warnings are visible and escaped in individual, comparison, and sweep reports", () => {
+  const sandbox = {};
+  vm.createContext(sandbox);
+  vm.runInContext(readFileSync(join(WEB_DIR, "render.js"), "utf8"), sandbox);
+  const report = {
+    label: "JDK 17",
+    jfr: { warnings: ["Use JDK 21+ <script>bad()</script>"], cpuLoad: [{ t: 0, jvmUser: 0.2, jvmSystem: 0.1, machineTotal: 0.4 }] },
+  };
+  const single = sandbox.renderReport(report);
+  assert.match(single, /class="warning-banner" role="status"/);
+  assert.match(single, /Use JDK 21\+ &lt;script&gt;bad\(\)&lt;\/script&gt;/);
+  assert.doesNotMatch(single, /<script>bad\(\)<\/script>/);
+  assert.match(single, /CPU load/);
+  assert.doesNotMatch(single, /id="views-pre"/);
+  const compare = sandbox.renderCompare(report, report);
+  assert.match(compare, /Baseline: JFR analysis incomplete/);
+  assert.match(compare, /Selected: JFR analysis incomplete/);
+  assert.match(sandbox.renderSweep([report]), /JDK 17: JFR analysis incomplete/);
+});
+
 test("sweepTrendChart plots every run within the chart's viewBox, even when a middle run is missing the metric", () => {
   const src = readFileSync(join(WEB_DIR, "render.js"), "utf8");
   const sandbox = {};

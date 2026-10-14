@@ -354,6 +354,12 @@ function signalPanels(jfr, s) {
   return panels;
 }
 
+function renderJfrWarnings(r, label = "") {
+  return (r.jfr?.warnings || []).map((warning) =>
+    `<div class="warning-banner" role="status"><strong>${esc(label ? `${label}: JFR analysis incomplete.` : "JFR analysis incomplete.")}</strong> ${esc(warning)}</div>`
+  ).join("");
+}
+
 function renderReport(r) {
   const gc = r.gc || {};
   const s = gc.summary || {};
@@ -362,6 +368,7 @@ function renderReport(r) {
 
   if (gc.error) out.push(`<div class="error-banner"><strong>GC log analysis error.</strong> ${esc(gc.error)}</div>`);
   if (jfr.error) out.push(`<div class="error-banner"><strong>JFR recording error.</strong> ${esc(jfr.error)}</div>`);
+  out.push(renderJfrWarnings(r));
 
   out.push(runMetaLine(r));
 
@@ -622,6 +629,7 @@ function renderCompare(aReport, bReport) {
   const sa = (aReport.gc && aReport.gc.summary) || {};
   const sb = (bReport.gc && bReport.gc.summary) || {};
   const out = [];
+  out.push(renderJfrWarnings(aReport, "Baseline"), renderJfrWarnings(bReport, "Selected"));
 
   out.push(sectionHeader("Comparison"));
   out.push(`<div class="cmp-head reveal" style="--i:0">
@@ -705,6 +713,7 @@ function renderSweep(reports) {
   const summaries = reports.map((r) => (r.gc && r.gc.summary) || {});
   const labels = reports.map((r, i) => r.label || `Run ${i + 1}`);
   const out = [];
+  out.push(...reports.map((r, i) => renderJfrWarnings(r, labels[i])));
 
   out.push(sectionHeader("Sweep", `${reports.length} runs`));
 

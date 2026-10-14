@@ -33,11 +33,21 @@ The extension runs on your machine and shells out to:
 - **A JDK 17+** on `PATH` (or via `JAVA_HOME`). The bundled jbang
   `GcLogAnalyzer.java` script is pinned to Java 17, and JVM Pulse drives jbang
   through that JDK when needed.
-- JFR capture still uses standard `-XX:StartFlightRecording` flags (JDK 11+),
-  and analyzed GC logs can come from either unified logging (JDK 9+) or legacy
-  JDK 8 GC log format.
+- **Use a JDK 21+ for full JFR analysis.** Top allocations, hot methods,
+  exception sites, and the raw views report use `jfr view`, introduced in
+  JDK 21. With a JDK 17–20 analysis tool, other JFR events are still extracted
+  and the report explicitly warns that these views are unavailable.
+- **The workload JVM can be older than the analysis JDK.** Standard JFR capture
+  uses `-XX:StartFlightRecording` on JDK 11+. Analyzed GC logs can come from
+  either unified logging (JDK 9+) or legacy JDK 8 GC log format. The portable
+  CLI's automatic `run`/`attach` recipes require JDK 11+; capture legacy logs
+  separately and use `ingest`.
 
-That's the only hard requirement. The extension uses
+For complete reports, point `JAVA_HOME` (or `PATH`) at a JDK 21+ when analyzing.
+You can re-ingest an existing recording with the newer tool without rerunning
+the workload. GC-only analysis still needs just JDK 17+.
+
+The extension uses
 **[jbang](https://www.jbang.dev/)** to run the bundled GCToolkit analyzer:
 
 - If a native `jbang` is already installed (via `sdk install jbang`,

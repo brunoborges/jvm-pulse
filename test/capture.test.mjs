@@ -232,17 +232,31 @@ test("docker attach auto-discovers the in-container pid when --pid is omitted", 
     const { stdout } = await execFileAsync("docker", [
       "run", "-d", "--rm", "eclipse-temurin:21-jdk",
       "sh", "-c",
-      "echo 'public class Sleeper { public static void main(String[] a) throws Exception { Thread.sleep(300000); } }' > /tmp/Sleeper.java " +
+      "sleep 4 && echo 'public class Sleeper { public static void main(String[] a) throws Exception { Thread.sleep(300000); } }' > /tmp/Sleeper.java " +
         "&& javac /tmp/Sleeper.java -d /tmp && exec java -cp /tmp Sleeper",
     ]);
     container = stdout.trim();
-    await new Promise((r) => setTimeout(r, 3000)); // let javac/java finish starting inside the container
+    // javac is itself a JVM; discovering it before exec java completes yields
+    // a PID that disappears before jcmd can attach. Wait for the workload.
+    let readyPid;
+    let listing = "";
+    const deadline = Date.now() + 30_000;
+    while (Date.now() < deadline) {
+      const { stdout } = await execFileAsync("docker", ["exec", container, "jps", "-lv"]);
+      listing = stdout;
+      readyPid = /^(\d+)\s+Sleeper(?:\s|$)/m.exec(listing)?.[1];
+      if (readyPid) break;
+      await new Promise((r) => setTimeout(r, 250));
+    }
+    assert.ok(readyPid, `workload JVM did not start within 30s; last jps output:\n${listing}`);
     const result = await attach({
       transport: { type: "docker", container },
       outDir,
       durationMs: 500,
     });
-    assert.ok(result.pid);
+    assert.equal(result.pid, readyPid);
+    assert.ok(existsSync(result.gcLogPath));
+    assert.ok(existsSync(result.jfrPath));
   } finally {
     if (container) await execFileAsync("docker", ["rm", "-f", container]).catch(() => {});
     await rm(outDir, { recursive: true, force: true });

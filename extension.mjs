@@ -360,6 +360,8 @@ sessionRef = await joinSession({
                             gc: report.gc?.summary ?? null,
                             gcConfig: report.gcConfig ?? null,
                             jfrAvailable: report.jfr?.available ?? false,
+                            jfrError: report.jfr?.error ?? null,
+                            jfrWarnings: report.jfr?.warnings ?? [],
                             signals: report.jfr ? {
                                 contention: report.jfr.contention?.available ? { count: report.jfr.contention.count, totalMs: report.jfr.contention.totalMs, maxMs: report.jfr.contention.maxMs } : null,
                                 safepoints: report.jfr.safepoints?.available ? { count: report.jfr.safepoints.count, totalMs: report.jfr.safepoints.totalMs, maxMs: report.jfr.safepoints.maxMs } : null,
@@ -428,6 +430,8 @@ sessionRef = await joinSession({
                             : "JFR: not available (no recording ingested).",
                     ];
                     const signals = [];
+                    if (jfr.error) lines.push(`JFR analysis error: ${jfr.error}`);
+                    for (const warning of jfr.warnings || []) lines.push(`JFR warning: ${warning}`);
                     if (jfr.contention?.available) signals.push(`lock contention ${Math.round(jfr.contention.totalMs)} ms across ${jfr.contention.count} blocks`);
                     if (jfr.safepoints?.available) signals.push(`${jfr.safepoints.count} safepoints (max TTSP ${Number(jfr.safepoints.maxMs).toFixed(2)} ms)`);
                     if (jfr.exceptions?.available) signals.push(`${jfr.exceptions.total} throwables (${jfr.exceptions.errors} errors)`);

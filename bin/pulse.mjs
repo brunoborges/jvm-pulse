@@ -38,6 +38,11 @@ function captureFlags(values) {
   };
 }
 
+function printJfrDiagnostics(report) {
+  if (report.jfr?.error) console.error(`pulse: JFR analysis error: ${report.jfr.error}`);
+  for (const warning of report.jfr?.warnings || []) console.error(`pulse: JFR warning: ${warning}`);
+}
+
 async function cmdIngest(argv) {
   const { values } = parseArgs({
     args: argv,
@@ -57,6 +62,7 @@ async function cmdIngest(argv) {
     label: values.label,
     command: values.command,
   });
+  printJfrDiagnostics(report);
 
   let htmlPath;
   if (values.baseline) {
@@ -90,6 +96,7 @@ async function cmdIngest(argv) {
 async function captureAndReport(outDir, { gcLogPath, jfrPath, label, command }) {
   try {
     const report = await analyzeArtifacts({ gcLogPath, jfrPath, label, command });
+    printJfrDiagnostics(report);
     const htmlPath = await writeStaticReport(report);
     console.log(`Report: ${htmlPath}`);
   } finally {
